@@ -2,12 +2,14 @@ package com.kovr.proctor.api;
 
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.kovr.proctor.api.dto.CreateDeptReq;
+import com.kovr.proctor.api.dto.CreateExamReq;
 import com.kovr.proctor.api.dto.CreateMajorReq;
 import com.kovr.proctor.api.dto.CreateTeacherReq;
 import com.kovr.proctor.domain.entity.*;
 import com.kovr.proctor.infra.mapper.*;
 import com.kovr.proctor.security.UserDetailsImpl;
 import com.kovr.proctor.service.FaceClient;
+import com.kovr.proctor.service.ExamArrangeService;
 import com.kovr.proctor.service.MailService;
 import com.kovr.proctor.util.PasswordGen;
 import lombok.RequiredArgsConstructor;
@@ -38,6 +40,7 @@ public class SchoolAdminController {
     private final FaceClient face;
     private final TeacherMapper teacherMapper;
     private final StudentMapper studentMapper;
+    private final ExamArrangeService examArrangeService;
 
     @GetMapping("/my")
     @PreAuthorize("hasRole('SCHOOL_ADMIN')")
@@ -147,5 +150,31 @@ public class SchoolAdminController {
         sp.insert(p);
         mail.sendAccount(email, name, email, raw);
         return Map.of("userId", u.getId());
+    }
+
+    @PostMapping("/{schoolId}/exams")
+    @PreAuthorize("hasRole('SCHOOL_ADMIN')")
+    public Map<String, Object> createExam(
+            @PathVariable Long schoolId,
+            @AuthenticationPrincipal UserDetailsImpl u,
+            @RequestBody CreateExamReq req) {
+        return examArrangeService.createExam(schoolId, u.getId(), req);
+    }
+
+    @GetMapping("/{schoolId}/exams")
+    @PreAuthorize("hasRole('SCHOOL_ADMIN')")
+    public List<Map<String, Object>> listExams(
+            @PathVariable Long schoolId,
+            @RequestParam(required = false) Long departmentId,
+            @RequestParam(required = false) Long majorId) {
+        return examArrangeService.listExams(schoolId, departmentId, majorId);
+    }
+
+    @GetMapping("/{schoolId}/exams/{examId}/rooms")
+    @PreAuthorize("hasRole('SCHOOL_ADMIN')")
+    public List<Map<String, Object>> listExamRooms(
+            @PathVariable Long schoolId,
+            @PathVariable Long examId) {
+        return examArrangeService.listExamRooms(examId);
     }
 }

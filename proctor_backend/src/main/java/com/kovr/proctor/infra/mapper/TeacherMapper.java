@@ -30,4 +30,19 @@ public interface TeacherMapper extends BaseMapper<TeacherEntity> {
             @Param("schoolId") Long schoolId,
             @Param("departmentId") Long departmentId,
             @Param("majorId") Long majorId);
+
+    @Select({
+            "<script>",
+            "select t.user_id",
+            "from teachers t",
+            "where t.school_id = #{schoolId}",
+            "<if test='departmentId != null'> and t.department_id = #{departmentId} </if>",
+            "<if test='majorId != null'> and t.major_id = #{majorId} </if>",
+            "order by t.user_id asc",
+            "</script>"
+    })
+    List<Long> selectTeacherIdsByScope(
+            @Param("schoolId") Long schoolId,
+            @Param("departmentId") Long departmentId,
+            @Param("majorId") Long majorId);
 }

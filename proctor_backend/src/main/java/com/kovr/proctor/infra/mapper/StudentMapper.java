@@ -48,4 +48,19 @@ public interface StudentMapper extends BaseMapper<StudentEntity> {
             "where s.user_id = #{userId}"
     })
     Map<String,Object> selectStudentProfileByUserId(@Param("userId") Long userId);
+
+    @Select({
+            "<script>",
+            "select s.user_id",
+            "from students s",
+            "where s.school_id = #{schoolId}",
+            "<if test='departmentId != null'> and s.department_id = #{departmentId} </if>",
+            "<if test='majorId != null'> and s.major_id = #{majorId} </if>",
+            "order by s.user_id asc",
+            "</script>"
+    })
+    List<Long> selectStudentIdsByScope(
+            @Param("schoolId") Long schoolId,
+            @Param("departmentId") Long departmentId,
+            @Param("majorId") Long majorId);
 }
