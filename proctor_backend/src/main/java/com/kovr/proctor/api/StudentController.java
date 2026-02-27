@@ -8,6 +8,7 @@ import com.kovr.proctor.infra.mapper.SchoolMapper;
 import com.kovr.proctor.infra.mapper.StudentMapper;
 import com.kovr.proctor.security.UserDetailsImpl;
 import com.kovr.proctor.service.FaceClient;
+import com.kovr.proctor.service.ExamService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.*;
@@ -27,6 +28,7 @@ import java.util.*;
 public class StudentController {
     private final StudentMapper sp;
     private final FaceClient faceClient;
+    private final ExamService examService;
     private final ObjectMapper om = new ObjectMapper();
 
     @Value("${app.face.verify.threshold:0.35}")
@@ -34,6 +36,12 @@ public class StudentController {
 
     @Value("${app.face.min_det_score:0.5}")
     double minDetScore;
+
+    @GetMapping("/exams")
+    @PreAuthorize("hasRole('STUDENT')")
+    public List<Map<String, Object>> myExams(@AuthenticationPrincipal UserDetailsImpl u) {
+        return examService.listExamsByStudent(u.getId());
+    }
 
     @GetMapping("/profile")
     @PreAuthorize("hasRole('STUDENT')")

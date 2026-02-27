@@ -3,10 +3,11 @@ import { useAuthStore } from "./store/auth";
 
 // ===== 学校管理员端 =====
 import SchoolLayout from "./pages/school/layouts/SchoolLayout.jsx";
-import SchoolDepartmentsPages from "./pages/school/schoolDepartmentsPages.jsx";
-import SchoolMajorsPages from "./pages/school/schoolMajorsPages.jsx";
-import SchoolStudentsPages from "./pages/school/schoolStudentsPages.jsx";
-import SchoolTeachersPages from "./pages/school/schoolTeachersPages.jsx";
+import SchoolDepartmentsPages from "./pages/school/SchoolDepartmentsPages.jsx";
+import SchoolMajorsPages from "./pages/school/SchoolMajorsPages.jsx";
+import SchoolStudentsPages from "./pages/school/SchoolStudentsPages.jsx";
+import SchoolTeachersPages from "./pages/school/SchoolTeachersPages.jsx";
+import SchoolExamsPages from "./pages/school/SchoolExamsPages.jsx";
 
 import Login from "./pages/Login.jsx";
 import Admin from "./pages/Admin.jsx";
@@ -32,20 +33,19 @@ export default function App() {
     <Routes>
       <Route path="/login" element={<Login />} />
 
-      <Route path="/admin" element={<Guard allow={["ADMIN"]}><Admin/></Guard>} />
+      <Route path="/admin" element={<Guard allow={["ADMIN"]}><Admin /></Guard>} />
 
-+     {/* 把子路由嵌套到 /school 下面，通过 <Outlet/> 渲染 */}
-+     <Route path="/school" element={<Guard allow={["SCHOOL_ADMIN"]}><SchoolLayout/></Guard>}>
-+       <Route index element={<Navigate to="school_departments_pages" replace />} />
-+       <Route path="school_departments_pages" element={<SchoolDepartmentsPages />} />
-+       <Route path="school_majors_pages" element={<SchoolMajorsPages />} />
-+       <Route path="school_teachers_pages" element={<SchoolTeachersPages />} />
-+       <Route path="school_students_pages" element={<SchoolStudentsPages />} />
-+     </Route>
+      {/* 把子路由嵌套到 /school 下面，通过 <Outlet/> 渲染 */}
+      <Route path="/school" element={<Guard allow={["SCHOOL_ADMIN"]}><SchoolLayout /></Guard>}>
+        <Route index element={<Navigate to="school_departments_pages" replace />} />
+        <Route path="school_departments_pages" element={<SchoolDepartmentsPages />} />
+        <Route path="school_majors_pages" element={<SchoolMajorsPages />} />
+        <Route path="school_teachers_pages" element={<SchoolTeachersPages />} />
+        <Route path="school_students_pages" element={<SchoolStudentsPages />} />
+        <Route path="school_exams_pages" element={<SchoolExamsPages />} />
+      </Route>
 
-
-      <Route path="/teacher" element={<Guard allow={["TEACHER"]}><Teacher/></Guard>} />
-
+      <Route path="/teacher" element={<Guard allow={["TEACHER"]}><Teacher /></Guard>} />
 
       {/* 学生端：无顶部导航的三页流转 */}
       <Route path="/student" element={<Guard allow={["STUDENT"]}><StudentLayout /></Guard>}>
@@ -55,7 +55,6 @@ export default function App() {
         <Route path="exam" element={<ExamRunner />} />
       </Route>
 
-      
       <Route path="*" element={<Navigate to="/login" replace />} />
     </Routes>
   );

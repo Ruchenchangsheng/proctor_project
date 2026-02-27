@@ -126,3 +126,24 @@ button:disabled { opacity: .6; cursor: not-allowed; }
   margin-top: 10px;
   color: #555;
 }
+
+/* 考试创建页 */
+.exam-select-group {
+  display: grid;
+  gap: 6px;
+}
+
+.exam-select-group label {
+  font-size: 13px;
+  color: #445;
+}
+
+.exam-select-group select[multiple] {
+  height: 140px;
+  padding: 8px;
+}
+
+.exam-hint {
+  color: #6b7280;
+  font-size: 12px;
+}

@@ -4,12 +4,14 @@ import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.kovr.proctor.api.dto.CreateDeptReq;
 import com.kovr.proctor.api.dto.CreateMajorReq;
 import com.kovr.proctor.api.dto.CreateTeacherReq;
+import com.kovr.proctor.api.dto.CreateExamReq;
 import com.kovr.proctor.domain.entity.*;
 import com.kovr.proctor.infra.mapper.*;
 import com.kovr.proctor.security.UserDetailsImpl;
 import com.kovr.proctor.service.FaceClient;
 import com.kovr.proctor.service.MailService;
 import com.kovr.proctor.util.PasswordGen;
+import com.kovr.proctor.service.ExamService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
@@ -38,6 +40,7 @@ public class SchoolAdminController {
     private final FaceClient face;
     private final TeacherMapper teacherMapper;
     private final StudentMapper studentMapper;
+    private final ExamService examService;
 
     @GetMapping("/my")
     @PreAuthorize("hasRole('SCHOOL_ADMIN')")
@@ -148,4 +151,22 @@ public class SchoolAdminController {
         mail.sendAccount(email, name, email, raw);
         return Map.of("userId", u.getId());
     }
+
+
+    @GetMapping("/{schoolId}/exams")
+    @PreAuthorize("hasRole('SCHOOL_ADMIN')")
+    public List<Map<String, Object>> listExams(@PathVariable Long schoolId,
+                                              @AuthenticationPrincipal UserDetailsImpl u) {
+        return examService.listExamsBySchool(schoolId, u.getId());
+    }
+
+    @PostMapping("/{schoolId}/exams")
+    @PreAuthorize("hasRole('SCHOOL_ADMIN')")
+    @Transactional
+    public Map<String, Object> createExam(@PathVariable Long schoolId,
+                                          @AuthenticationPrincipal UserDetailsImpl u,
+                                          @RequestBody @jakarta.validation.Valid CreateExamReq req) {
+        return examService.createExam(schoolId, u.getId(), req);
+    }
+
 }

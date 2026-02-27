@@ -4,6 +4,7 @@ import com.kovr.proctor.infra.mapper.DepartmentMapper;
 import com.kovr.proctor.infra.mapper.SchoolMapper;
 import com.kovr.proctor.infra.mapper.TeacherMapper;
 import com.kovr.proctor.infra.mapper.UserMapper;
+import com.kovr.proctor.service.ExamService;
 import com.kovr.proctor.security.UserDetailsImpl;
 import lombok.RequiredArgsConstructor;
 import org.springframework.security.access.prepost.PreAuthorize;
@@ -23,6 +24,7 @@ public class TeacherController {
     private final TeacherMapper tp;
     private final SchoolMapper sm;
     private final DepartmentMapper dm;
+    private final ExamService examService;
 
     @GetMapping("/profile")
     @PreAuthorize("hasRole('TEACHER')")
@@ -38,4 +40,12 @@ public class TeacherController {
         }
         return m;
     }
+
+
+    @GetMapping("/exams")
+    @PreAuthorize("hasRole('TEACHER')")
+    public java.util.List<Map<String, Object>> myExams(@AuthenticationPrincipal UserDetailsImpl u) {
+        return examService.listExamsByTeacher(u.getId());
+    }
+
 }
