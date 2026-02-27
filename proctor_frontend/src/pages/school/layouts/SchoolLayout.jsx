@@ -35,6 +35,7 @@ export default function SchoolLayout() {
           <NavLink to="school_majors_pages" className={({isActive}) => isActive ? "active" : ""}>专业</NavLink>
           <NavLink to="school_teachers_pages" className={({isActive}) => isActive ? "active" : ""}>老师</NavLink>
           <NavLink to="school_students_pages" className={({isActive}) => isActive ? "active" : ""}>学生</NavLink>
+          <NavLink to="school_exams_pages" className={({isActive}) => isActive ? "active" : ""}>考试</NavLink>
         </nav>
 
         <div className="school-right">

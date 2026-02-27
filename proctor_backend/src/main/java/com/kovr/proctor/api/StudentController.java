@@ -3,10 +3,14 @@ package com.kovr.proctor.api;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.kovr.proctor.domain.entity.StudentEntity;
 import com.kovr.proctor.infra.mapper.DepartmentMapper;
+import com.kovr.proctor.infra.mapper.ExamSessionMapper;
 import com.kovr.proctor.infra.mapper.MajorMapper;
 import com.kovr.proctor.infra.mapper.SchoolMapper;
 import com.kovr.proctor.infra.mapper.StudentMapper;
 import com.kovr.proctor.security.UserDetailsImpl;
+import com.kovr.proctor.service.AnomalyClient;
+import com.kovr.proctor.service.AnomalyEventService;
+import com.kovr.proctor.service.ExamLiveStateService;
 import com.kovr.proctor.service.FaceClient;
 import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.annotation.Value;
@@ -26,7 +30,11 @@ import java.util.*;
 @RequiredArgsConstructor
 public class StudentController {
     private final StudentMapper sp;
+    private final ExamSessionMapper examSessionMapper;
+    private final ExamLiveStateService examLiveStateService;
     private final FaceClient faceClient;
+    private final AnomalyClient anomalyClient;
+    private final AnomalyEventService anomalyEventService;
     private final ObjectMapper om = new ObjectMapper();
 
     @Value("${app.face.verify.threshold:0.35}")
@@ -148,6 +156,96 @@ public class StudentController {
         }
         double denom = Math.sqrt(na) * Math.sqrt(nb);
         return denom == 0 ? -1.0 : (dot / denom);
+    }
+
+    @GetMapping("/current-room")
+    @PreAuthorize("hasRole('STUDENT')")
+    public Map<String, Object> currentRoom(@AuthenticationPrincipal UserDetailsImpl u) {
+        try {
+            Map<String, Object> session = examSessionMapper.selectCurrentSessionByStudentId(u.getId());
+            if (session == null) {
+                return Map.of("hasRoom", false, "msg", "当前未分配考试房间");
+            }
+            Map<String, Object> res = new LinkedHashMap<>(session);
+            res.put("hasRoom", true);
+            return res;
+        } catch (Exception ex) {
+            return Map.of("hasRoom", false, "msg", "查询考试房间失败，请稍后重试");
+        }
+    }
+
+    @GetMapping("/exams")
+    @PreAuthorize("hasRole('STUDENT')")
+    public List<Map<String, Object>> myExams(@AuthenticationPrincipal UserDetailsImpl u) {
+        try {
+            return examSessionMapper.selectSessionsByStudentId(u.getId());
+        } catch (Exception ex) {
+            return List.of();
+        }
+    }
+
+    @GetMapping("/exams/{sessionId}/room")
+    @PreAuthorize("hasRole('STUDENT')")
+    public Map<String, Object> sessionRoom(@AuthenticationPrincipal UserDetailsImpl u,
+                                           @PathVariable Long sessionId) {
+        try {
+            Map<String, Object> session = examSessionMapper.selectSessionRoomByStudentAndSessionId(u.getId(), sessionId);
+            if (session == null) {
+                return Map.of("hasRoom", false, "msg", "未找到该考试场次或无权限");
+            }
+            Map<String, Object> res = new LinkedHashMap<>(session);
+            res.put("hasRoom", true);
+            return res;
+        } catch (Exception ex) {
+            return Map.of("hasRoom", false, "msg", "查询考试房间失败，请稍后重试");
+        }
+    }
+
+    @PostMapping(value = "/current-room/frame", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+    @PreAuthorize("hasRole('STUDENT')")
+    public Map<String, Object> uploadFrame(@AuthenticationPrincipal UserDetailsImpl u,
+                                           @RequestPart("photo") MultipartFile photo) throws Exception {
+        Map<String, Object> session;
+        try {
+            session = examSessionMapper.selectCurrentSessionByStudentId(u.getId());
+        } catch (Exception ex) {
+            return Map.of("ok", false, "msg", "查询考试房间失败，请稍后重试");
+        }
+        if (session == null || !(session.get("examRoomId") instanceof Number roomIdNumber)) {
+            return Map.of("ok", false, "msg", "当前未分配考试房间");
+        }
+        Long roomId = roomIdNumber.longValue();
+        byte[] bytes = photo.getBytes();
+        String mime = Optional.ofNullable(photo.getContentType()).orElse("image/jpeg");
+        examLiveStateService.putFrame(roomId, u.getId(), mime, bytes);
+        long tsMs = System.currentTimeMillis();
+        var events = anomalyClient.detect(roomId, u.getId(), bytes, mime, tsMs);
+        anomalyEventService.mergeEvents(roomId, u.getId(), events);
+        return Map.of("ok", true, "examRoomId", roomId, "size", bytes.length, "events", events);
+    }
+
+    @PostMapping(value = "/exams/{sessionId}/frame", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+    @PreAuthorize("hasRole('STUDENT')")
+    public Map<String, Object> uploadFrameBySession(@AuthenticationPrincipal UserDetailsImpl u,
+                                                    @PathVariable Long sessionId,
+                                                    @RequestPart("photo") MultipartFile photo) throws Exception {
+        Map<String, Object> session;
+        try {
+            session = examSessionMapper.selectSessionRoomByStudentAndSessionId(u.getId(), sessionId);
+        } catch (Exception ex) {
+            return Map.of("ok", false, "msg", "查询考试房间失败，请稍后重试");
+        }
+        if (session == null || !(session.get("examRoomId") instanceof Number roomIdNumber)) {
+            return Map.of("ok", false, "msg", "当前未分配考试房间");
+        }
+        Long roomId = roomIdNumber.longValue();
+        byte[] bytes = photo.getBytes();
+        String mime = Optional.ofNullable(photo.getContentType()).orElse("image/jpeg");
+        examLiveStateService.putFrame(roomId, u.getId(), mime, bytes);
+        long tsMs = System.currentTimeMillis();
+        var events = anomalyClient.detect(roomId, u.getId(), bytes, mime, tsMs);
+        anomalyEventService.mergeEvents(roomId, u.getId(), events);
+        return Map.of("ok", true, "examRoomId", roomId, "size", bytes.length, "events", events);
     }
 
 }
