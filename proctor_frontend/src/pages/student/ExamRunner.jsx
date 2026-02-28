@@ -33,7 +33,7 @@ export default function ExamRunner() {
   async function uploadAiFrame() {
     if (aiUploadingRef.current) return;
     const video = videoRef.current;
-    if (!video || video.readyState < 2 || !sessionId) return;
+    if (!video || video.readyState < 2) return;
     const canvas = aiCanvasRef.current || document.createElement("canvas");
     aiCanvasRef.current = canvas;
     const targetWidth = 320;
@@ -50,7 +50,8 @@ export default function ExamRunner() {
       if (!blob) return;
       const fd = new FormData();
       fd.append("photo", blob, "ai.jpg");
-      await api.post(`/student/exams/${sessionId}/frame`, fd);
+      const endpoint = sessionId ? `/student/exams/${sessionId}/frame` : `/student/current-room/frame`;
+      await api.post(endpoint, fd);
     } catch {
       // ignore ai upload failures
     } finally {
@@ -171,10 +172,8 @@ export default function ExamRunner() {
             publishSignal({ type: "student-join", senderRole: "STUDENT", senderId: studentSenderId });
           }, 3000);
 
-          setMsg("已进入考试房间，正在向监考老师实时推流（AI检测30fps采样）...");
-          if (sessionId) {
-            aiTimerRef.current = setInterval(uploadAiFrame, 33);
-          }
+          setMsg("已进入考试房间，正在向监考老师实时推流（AI检测进行中）...");
+          aiTimerRef.current = setInterval(uploadAiFrame, 200);
         };
 
         client.activate();

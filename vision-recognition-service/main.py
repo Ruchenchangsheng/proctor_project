@@ -76,8 +76,16 @@ def health():
 
 @app.post("/embed")
 async def embed(file: UploadFile = File(...)):
-    img = imread_bgr(await file.read())
-    faces = face_app.get(img)
+    try:
+        img = imread_bgr(await file.read())
+    except Exception:
+        return {"ok": False, "msg": "bad image"}
+
+    try:
+        faces = face_app.get(img)
+    except Exception:
+        return {"ok": False, "msg": "extract failed"}
+
     if not faces:
         return {"ok": False, "msg": "no face"}
     faces.sort(key=lambda f: float(f.det_score), reverse=True)
@@ -105,8 +113,16 @@ async def verify(
     target: str = Form(...),
     threshold: float = Form(0.35)
 ):
-    img = imread_bgr(await file.read())
-    faces = face_app.get(img)
+    try:
+        img = imread_bgr(await file.read())
+    except Exception:
+        return VerifyResp(ok=False, score=0.0, threshold=threshold)
+
+    try:
+        faces = face_app.get(img)
+    except Exception:
+        return VerifyResp(ok=False, score=0.0, threshold=threshold)
+
     if not faces:
         return VerifyResp(ok=False, score=0.0, threshold=threshold)
     faces.sort(key=lambda f: float(f.det_score), reverse=True)
