@@ -1,6 +1,7 @@
 package com.kovr.proctor.api;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.kovr.proctor.common.BusinessException;
 import com.kovr.proctor.domain.entity.StudentEntity;
 import com.kovr.proctor.infra.mapper.DepartmentMapper;
 import com.kovr.proctor.infra.mapper.ExamSessionMapper;
@@ -109,7 +110,20 @@ public class StudentController {
         // 提取当前帧 embedding
         byte[] bytes = photo.getBytes();
         String mime = Optional.ofNullable(photo.getContentType()).orElse("image/jpeg");
-        var cur = faceClient.extract(mime, bytes);
+        FaceClient.FaceInfo cur;
+        try {
+            cur = faceClient.extract(mime, bytes);
+        } catch (BusinessException ex) {
+            String msg = "当前照片无法完成人脸特征提取，请确认正脸入镜、光线充足后重试";
+            if ("FACE_SERVICE_UNAVAILABLE".equals(ex.getCode())) {
+                msg = "人脸服务暂时不可用，请稍后重试";
+            }
+            return Map.of(
+                    "ok", false,
+                    "passed", false,
+                    "msg", msg
+            );
+        }
 
         // 质量门控（det_score）
         double det = cur.getScore();
