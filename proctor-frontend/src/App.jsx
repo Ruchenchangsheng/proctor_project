@@ -1,4 +1,4 @@
-import { Routes, Route, Navigate , useLocation} from "react-router-dom";
+import { Routes, Route, Navigate, useLocation } from "react-router-dom";
 import { useAuthStore } from "./store/auth";
 import { useEffect, useState } from "react";
 import "./index.css";
@@ -40,7 +40,10 @@ function Guard({ children, allow }) {
   }, [token, me, bootstrapAfterLogin]);
 
   if (!token) return <Navigate to="/login" replace />;
-  if (!me || loadingMe) return <div style={{ padding: 20 }}>正在恢复登录信息...</div>;
+  
+  // 给加载提示也加上玻璃效果
+  if (!me || loadingMe) return <div className="glass-effect" style={{ padding: 20, margin: '20vh auto', width: 'fit-content', borderRadius: '12px' }}>正在恢复登录信息...</div>;
+  
   if (allow && !allow.includes(me.role)) return <Navigate to="/login" replace />;
   return children;
 }
@@ -48,6 +51,7 @@ function Guard({ children, allow }) {
 export default function App() {
   const location = useLocation();
   const isLoginPage = location.pathname === "/login";
+  
   return (
     <div className={isLoginPage ? "app-login" : "app-shell"}>
       <Routes>
@@ -55,20 +59,18 @@ export default function App() {
 
       <Route path="/admin" element={<Guard allow={["ADMIN"]}><Admin /></Guard>} />
 
-+     {/* 把子路由嵌套到 /school 下面，通过 <Outlet/> 渲染 */}
-+     <Route path="/school" element={<Guard allow={["SCHOOL_ADMIN"]}><SchoolLayout/></Guard>}>
-+       <Route index element={<Navigate to="school_departments_pages" replace />} />
-+       <Route path="school_departments_pages" element={<SchoolDepartmentsPages />} />
-+       <Route path="school_majors_pages" element={<SchoolMajorsPages />} />
-+       <Route path="school_teachers_pages" element={<SchoolTeachersPages />} />
-+       <Route path="school_students_pages" element={<SchoolStudentsPages />} />
+      {/* 把子路由嵌套到 /school 下面，通过 <Outlet/> 渲染 */}
+      <Route path="/school" element={<Guard allow={["SCHOOL_ADMIN"]}><SchoolLayout/></Guard>}>
+        <Route index element={<Navigate to="school_departments_pages" replace />} />
+        <Route path="school_departments_pages" element={<SchoolDepartmentsPages />} />
+        <Route path="school_majors_pages" element={<SchoolMajorsPages />} />
+        <Route path="school_teachers_pages" element={<SchoolTeachersPages />} />
+        <Route path="school_students_pages" element={<SchoolStudentsPages />} />
         <Route path="school_exams_pages" element={<SchoolExamsPages />} />
-+     </Route>
-
+      </Route>
 
       <Route path="/teacher" element={<Guard allow={["TEACHER"]}><Teacher/></Guard>} />
       <Route path="/teacher/monitor/:examRoomId" element={<Guard allow={["TEACHER"]}><TeacherMonitor/></Guard>} />
-
 
       {/* 学生端：无顶部导航的三页流转 */}
       <Route path="/student" element={<Guard allow={["STUDENT"]}><StudentLayout /></Guard>}>
@@ -79,7 +81,6 @@ export default function App() {
         <Route path="exams/:sessionId/verify" element={<StudentExamVerify />} />
         <Route path="exams/:sessionId/run" element={<ExamRunner />} />
       </Route>
-
       
       <Route path="*" element={<Navigate to="/login" replace />} />
       </Routes>

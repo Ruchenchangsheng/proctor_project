@@ -5,8 +5,6 @@
   font-weight: 400;
 
   color: #1f2937;
-  background-color: #f5f7fb;
-
   font-synthesis: none;
   text-rendering: optimizeLegibility;
   -webkit-font-smoothing: antialiased;
@@ -15,7 +13,8 @@
 
 html, body, #root {
   width: 100%;
-  min-height: 100%;}
+  min-height: 100%;
+}
 
 body {
   margin: 0;
@@ -23,19 +22,41 @@ body {
   place-items: center;
   min-width: 320px;
   min-height: 100vh;
+  /* 添加柔和的渐变背景，这是玻璃风格的基础 */
+  background: linear-gradient(135deg, #e0c3fc 0%, #8ec5fc 100%);
+  background-attachment: fixed;
 }
 
-body { min-height: 100vh; }
+/* 定义全局的毛玻璃类，供后续组件复用 */
+.glass-effect {
+  background: rgba(255, 255, 255, 0.4); 
+  backdrop-filter: blur(12px);          
+  -webkit-backdrop-filter: blur(12px);  
+  border: 1px solid rgba(255, 255, 255, 0.5); 
+  box-shadow: 0 8px 32px 0 rgba(31, 38, 135, 0.1); 
+}
 
+/* 修改外壳容器，应用玻璃效果 */
 .app-shell {
   width: 94vw;
   min-height: 94vh;
   margin: 0 auto;
   padding: 1.5vh 1vw;
+  border-radius: 16px; 
+  /* 应用玻璃属性 */
+  background: rgba(255, 255, 255, 0.3);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border: 1px solid rgba(255, 255, 255, 0.4);
+  box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.1);
 }
+
 .app-login {
   width: 100%;
   min-height: 100vh;
+  display: flex;
+  justify-content: center;
+  align-items: center;
 }
 
 @media (max-width: 1024px) {
