@@ -1,36 +1,27 @@
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useEffect, useState } from "react";
 import { useOutletContext } from "react-router-dom";
 import { api } from "../../apiClient";
+import { Card, Form, Input, InputNumber, Select, Button, Table, Typography, message, Divider, Space, Modal } from "antd";
+import { SaveOutlined, FileAddOutlined, ReloadOutlined } from "@ant-design/icons";
 
-const DEFAULT_FORM = {
-  name: "",
-  departmentId: "",
-  majorId: "",
-  startAt: "",
-  endAt: "",
-  invigilatorScreenWidth: 1920,
-  invigilatorScreenHeight: 1080,
-  minStudentTileWidth: 320,
-  minStudentTileHeight: 240,
-  hardCapPerRoom: ""
-};
+const { Title, Text } = Typography;
 
 export default function SchoolExamsPages() {
   const { school } = useOutletContext();
   const [departments, setDepartments] = useState([]);
   const [majors, setMajors] = useState([]);
-  const [form, setForm] = useState(DEFAULT_FORM);
+  
   const [loading, setLoading] = useState(false);
   const [listLoading, setListLoading] = useState(false);
-  const [msg, setMsg] = useState("");
   const [result, setResult] = useState(null);
   const [examList, setExamList] = useState([]);
   const [selectedExamId, setSelectedExamId] = useState("");
   const [rooms, setRooms] = useState([]);
-  const [anomalyPolicy, setAnomalyPolicy] = useState({ warningThreshold: 0.65, severeThreshold: 0.85, sampleIntervalMs: 1000, identityVerifyIntervalSec: 8 });
   const [policySaving, setPolicySaving] = useState(false);
 
-  const currentDeptId = useMemo(() => Number(form.departmentId) || null, [form.departmentId]);
+  const [policyForm] = Form.useForm();
+  const [examForm] = Form.useForm();
+  const departmentIdVal = Form.useWatch('departmentId', examForm);
 
   useEffect(() => {
     if (!school?.id) return;
@@ -40,15 +31,20 @@ export default function SchoolExamsPages() {
         const list = d.data || [];
         setDepartments(list);
         if (list.length) {
-          const firstDeptId = String(list[0].id);
-          setForm((prev) => ({ ...prev, departmentId: firstDeptId }));
+          const firstDeptId = list[0].id;
+          examForm.setFieldsValue({ departmentId: firstDeptId });
           await loadMajors(firstDeptId);
         }
         await loadExams();
         await loadAnomalyPolicy();
-      } catch (e) {
-        setMsg(e.message);
-      }
+        
+        examForm.setFieldsValue({
+          invigilatorScreenWidth: 1920,
+          invigilatorScreenHeight: 1080,
+          minStudentTileWidth: 320,
+          minStudentTileHeight: 240,
+        });
+      } catch (e) { message.error(e.message); }
     })();
   }, [school?.id]);
 
@@ -57,10 +53,7 @@ export default function SchoolExamsPages() {
     const m = await api.get(`/school/${school.id}/majors?departmentId=${departmentId}`);
     const majorList = m.data || [];
     setMajors(majorList);
-    setForm((prev) => ({
-      ...prev,
-      majorId: majorList.length ? String(majorList[0].id) : ""
-    }));
+    examForm.setFieldsValue({ majorId: majorList.length ? majorList[0].id : null });
   }
 
   async function loadExams() {
@@ -69,13 +62,8 @@ export default function SchoolExamsPages() {
     try {
       const r = await api.get(`/school/${school.id}/exams`);
       setExamList(r.data || []);
-      setSelectedExamId("");
-      setRooms([]);
-    } catch (err) {
-      setMsg(err.message);
-    } finally {
-      setListLoading(false);
-    }
+    } catch (err) { message.error("加载考试列表失败"); } 
+    finally { setListLoading(false); }
   }
 
   async function loadAnomalyPolicy() {
@@ -83,300 +71,180 @@ export default function SchoolExamsPages() {
     try {
       const r = await api.get(`/school/${school.id}/anomaly-policy`);
       if (r.data?.ok && r.data?.policy) {
-        setAnomalyPolicy(r.data.policy);
+        policyForm.setFieldsValue(r.data.policy);
       }
-    } catch (err) {
-      setMsg(err.message);
-    }
+    } catch (err) { message.error("加载策略失败"); }
   }
 
-  async function saveAnomalyPolicy(e) {
-    e.preventDefault();
+  async function saveAnomalyPolicy(values) {
     setPolicySaving(true);
     try {
       const payload = {
-        warningThreshold: Number(anomalyPolicy.warningThreshold),
-        severeThreshold: Number(anomalyPolicy.severeThreshold),
-        sampleIntervalMs: Number(anomalyPolicy.sampleIntervalMs),
-        identityVerifyIntervalSec: Number(anomalyPolicy.identityVerifyIntervalSec),
+        warningThreshold: Number(values.warningThreshold),
+        severeThreshold: Number(values.severeThreshold),
+        sampleIntervalMs: Number(values.sampleIntervalMs),
+        identityVerifyIntervalSec: Number(values.identityVerifyIntervalSec),
       };
       const r = await api.put(`/school/${school.id}/anomaly-policy`, payload);
       if (r.data?.ok && r.data?.policy) {
-        setAnomalyPolicy(r.data.policy);
-        setMsg("违规分级阈值已更新");
+        policyForm.setFieldsValue(r.data.policy);
+        message.success("违规分级阈值已更新");
       }
-    } catch (err) {
-      setMsg(err.message);
-    } finally {
-      setPolicySaving(false);
-    }
+    } catch (err) { message.error(err.message || "保存失败"); } 
+    finally { setPolicySaving(false); }
   }
 
-
+  // 这里的逻辑已修改：获取数据后直接打开 Modal
   async function viewRooms(examId) {
     if (!examId) return;
     setListLoading(true);
     try {
       const r = await api.get(`/school/${school.id}/exams/${examId}/rooms`);
-      setSelectedExamId(String(examId));
       setRooms(r.data || []);
-    } catch (err) {
-      setMsg(err.message);
-    } finally {
-      setListLoading(false);
-    }
+      setSelectedExamId(String(examId)); // 设置 ID，触发弹窗显示
+    } catch (err) { message.error(err.message); } 
+    finally { setListLoading(false); }
   }
 
-  async function onChangeDepartment(e) {
-    const nextId = e.target.value;
-    setForm((prev) => ({ ...prev, departmentId: nextId }));
-    try {
-      await loadMajors(nextId);
-    } catch (err) {
-      setMsg(err.message);
-    }
-  }
-
-  function onChange(e) {
-    const { name, value } = e.target;
-    setForm((prev) => ({ ...prev, [name]: value }));
-  }
-
-  async function onSubmit(e) {
-    e.preventDefault();
-    if (!form.departmentId || !form.majorId) {
-      setMsg("请先选择学院和专业");
-      return;
+  async function onSubmitExam(values) {
+    if (!values.departmentId || !values.majorId) {
+      message.error("请先选择学院和专业"); return;
     }
     setLoading(true);
-    setMsg("");
     setResult(null);
     try {
       const payload = {
-        name: form.name.trim(),
-        departmentId: Number(form.departmentId),
-        majorId: Number(form.majorId),
-        startAt: form.startAt || null,
-        endAt: form.endAt || null,
-        invigilatorScreenWidth: Number(form.invigilatorScreenWidth),
-        invigilatorScreenHeight: Number(form.invigilatorScreenHeight),
-        minStudentTileWidth: Number(form.minStudentTileWidth),
-        minStudentTileHeight: Number(form.minStudentTileHeight),
-        hardCapPerRoom: form.hardCapPerRoom ? Number(form.hardCapPerRoom) : null
+        name: values.name.trim(),
+        departmentId: Number(values.departmentId),
+        majorId: Number(values.majorId),
+        startAt: values.startAt || null,
+        endAt: values.endAt || null,
+        invigilatorScreenWidth: Number(values.invigilatorScreenWidth),
+        invigilatorScreenHeight: Number(values.invigilatorScreenHeight),
+        minStudentTileWidth: Number(values.minStudentTileWidth),
+        minStudentTileHeight: Number(values.minStudentTileHeight),
+        hardCapPerRoom: values.hardCapPerRoom ? Number(values.hardCapPerRoom) : null
       };
       const r = await api.post(`/school/${school.id}/exams`, payload);
       setResult(r.data);
-      setMsg("考试创建成功，已完成考生与监考老师自动分配");
+      message.success("考试创建成功，已完成自动分房");
+      examForm.resetFields(['name', 'startAt', 'endAt']); 
       await loadExams();
-    } catch (err) {
-      setMsg(err.message);
-    } finally {
-      setLoading(false);
-    }
+    } catch (err) { message.error(err.message || "创建考试失败"); } 
+    finally { setLoading(false); }
   }
 
   return (
-    <>
-    <div className="card " style={{paddingLeft:24,paddingRight:24}}>
-      <div >
-        <h3>异常检测分级阈值</h3>
-        <form onSubmit={saveAnomalyPolicy} className="form-row cols-5">
-          <div>
-            <div style={{ fontSize: 12, color: "#475569", marginBottom: 4 }}>普通违规阈值</div>
-            <input
-              type="number"
-              min="0"
-              max="1"
-              step="0.01"
-              value={anomalyPolicy.warningThreshold}
-              onChange={(e) => setAnomalyPolicy((prev) => ({ ...prev, warningThreshold: e.target.value }))}
-            />
-          </div>
-          <div>
-            <div style={{ fontSize: 12, color: "#475569", marginBottom: 4 }}>严重违规阈值</div>
-            <input
-              type="number"
-              min="0"
-              max="1"
-              step="0.01"
-              value={anomalyPolicy.severeThreshold}
-              onChange={(e) => setAnomalyPolicy((prev) => ({ ...prev, severeThreshold: e.target.value }))}
-            />
-          </div>
-          <div>
-            <div style={{ fontSize: 12, color: "#475569", marginBottom: 4 }}>异常检测采样间隔(ms)</div>
-            <input
-              type="number"
-              min="200"
-              max="10000"
-              step="100"
-              value={anomalyPolicy.sampleIntervalMs}
-              onChange={(e) => setAnomalyPolicy((prev) => ({ ...prev, sampleIntervalMs: e.target.value }))}
-            />
-          </div>
-          <div>
-            <div style={{ fontSize: 12, color: "#475569", marginBottom: 4 }}>身份核验间隔(秒)</div>
-            <input
-              type="number"
-              min="2"
-              max="120"
-              step="1"
-              value={anomalyPolicy.identityVerifyIntervalSec}
-              onChange={(e) => setAnomalyPolicy((prev) => ({ ...prev, identityVerifyIntervalSec: e.target.value }))}
-            />
-          </div>
-          <div style={{ display: "flex", alignItems: "end" }}>
-            <button type="submit" disabled={policySaving}>
-              {policySaving ? "保存中..." : "保存阈值"}
-            </button>
-          </div>
-        </form>
-        <div style={{ fontSize: 12, color: "#64748b", marginTop: 8 }}>
-          说明：模型输出的违规概率 ≥ 严重阈值判定为严重违规，否则为普通违规；并按配置间隔执行姿态异常检测与身份核验。
-        </div>
-        </div>
-      </div>
+    <div style={{ maxWidth: 1400, margin: "0 auto" }}>
+      <Card className="glass-effect" bordered={false} style={{ marginBottom: 24, borderRadius: 12 }}>
+        <Title level={4} style={{ marginTop: 0, marginBottom: 20 }}>异常检测分级阈值</Title>
+        <Form form={policyForm} layout="inline" onFinish={saveAnomalyPolicy}>
+          <Form.Item name="warningThreshold" label="普通违规阈值"><InputNumber min={0} max={1} step={0.01} style={{ width: 100 }} /></Form.Item>
+          <Form.Item name="severeThreshold" label="严重违规阈值"><InputNumber min={0} max={1} step={0.01} style={{ width: 100 }} /></Form.Item>
+          <Form.Item name="sampleIntervalMs" label="采样间隔(ms)"><InputNumber min={200} max={10000} step={100} style={{ width: 120 }} /></Form.Item>
+          <Form.Item name="identityVerifyIntervalSec" label="身份核验间隔(秒)"><InputNumber min={2} max={120} step={1} style={{ width: 100 }} /></Form.Item>
+          <Form.Item><Button type="primary" htmlType="submit" loading={policySaving} icon={<SaveOutlined />}>保存阈值</Button></Form.Item>
+        </Form>
+        <Text type="secondary" style={{ display: 'block', marginTop: 12, fontSize: 13 }}>💡 说明：模型输出的违规概率 ≥ 严重阈值判定为严重违规，否则为普通违规。</Text>
+      </Card>
       
-      <div className="card">
-        <h3>创建考试并自动分房</h3>
-        <form onSubmit={onSubmit} className="form-row cols-5">
-          <input name="name" value={form.name} onChange={onChange} placeholder="考试名称" required />
-
-          <select name="departmentId" value={form.departmentId} onChange={onChangeDepartment} required>
-            {departments.map((d) => <option key={d.id} value={d.id}>{d.name}</option>)}
-          </select>
-
-          <select name="majorId" value={form.majorId} onChange={onChange} required disabled={!majors.length}>
-            {majors.map((m) => <option key={m.id} value={m.id}>{m.name}</option>)}
-          </select>
-
-          <input name="startAt" type="datetime-local" value={form.startAt} onChange={onChange} />
-          <input name="endAt" type="datetime-local" value={form.endAt} onChange={onChange} />
-
-          <input name="invigilatorScreenWidth" type="number" min="1" value={form.invigilatorScreenWidth} onChange={onChange} placeholder="监考屏幕宽(px)" />
-          <input name="invigilatorScreenHeight" type="number" min="1" value={form.invigilatorScreenHeight} onChange={onChange} placeholder="监考屏幕高(px)" />
-          <input name="minStudentTileWidth" type="number" min="1" value={form.minStudentTileWidth} onChange={onChange} placeholder="最小学生画面宽(px)" />
-          <input name="minStudentTileHeight" type="number" min="1" value={form.minStudentTileHeight} onChange={onChange} placeholder="最小学生画面高(px)" />
-          <input name="hardCapPerRoom" type="number" min="1" value={form.hardCapPerRoom} onChange={onChange} placeholder="单房间硬上限(可选)" />
-
-          <button type="submit" disabled={loading || !majors.length}>
-            {loading ? "创建中..." : "创建考试"}
-          </button>
-        </form>
-        {msg && <div className="msg">{msg}</div>}
-        {currentDeptId && !majors.length && <div className="msg">当前学院暂无专业，请先创建专业</div>}
-      </div>
+      <Card className="glass-effect" bordered={false} style={{ marginBottom: 24, borderRadius: 12 }}>
+        <Title level={4} style={{ marginTop: 0, marginBottom: 20 }}>创建考试并自动分房</Title>
+        <Form form={examForm} layout="vertical" onFinish={onSubmitExam}>
+          <Space align="start" size="large" wrap>
+            <Form.Item name="name" label="考试名称" rules={[{ required: true }]}><Input placeholder="输入考试名称" style={{ width: 200 }} /></Form.Item>
+            <Form.Item name="departmentId" label="学院" rules={[{ required: true }]}><Select style={{ width: 180 }} onChange={(v) => loadMajors(v)} options={departments.map(d => ({ value: d.id, label: d.name }))} /></Form.Item>
+            <Form.Item name="majorId" label="专业" rules={[{ required: true }]}><Select style={{ width: 180 }} disabled={!majors.length} options={majors.map(m => ({ value: m.id, label: m.name }))} /></Form.Item>
+            <Form.Item name="startAt" label="开始时间" rules={[{ required: true }]}><Input type="datetime-local" /></Form.Item>
+            <Form.Item name="endAt" label="结束时间" rules={[{ required: true }]}><Input type="datetime-local" /></Form.Item>
+          </Space>
+          <Divider dashed style={{ margin: '12px 0' }} />
+          <Space align="start" size="large" wrap>
+            <Form.Item name="invigilatorScreenWidth" label="监考屏幕宽(px)"><InputNumber min={1} style={{ width: 140 }} /></Form.Item>
+            <Form.Item name="invigilatorScreenHeight" label="监考屏幕高(px)"><InputNumber min={1} style={{ width: 140 }} /></Form.Item>
+            <Form.Item name="minStudentTileWidth" label="最小画面宽(px)"><InputNumber min={1} style={{ width: 140 }} /></Form.Item>
+            <Form.Item name="minStudentTileHeight" label="最小画面高(px)"><InputNumber min={1} style={{ width: 140 }} /></Form.Item>
+            <Form.Item name="hardCapPerRoom" label="单房间硬上限(选填)"><InputNumber min={1} style={{ width: 140 }} placeholder="无限制" /></Form.Item>
+          </Space>
+          <div style={{ marginTop: 8 }}>
+            <Button type="primary" htmlType="submit" size="large" loading={loading} disabled={!majors.length} icon={<FileAddOutlined />}>创建考试并分房</Button>
+            {departmentIdVal && !majors.length && <Text type="danger" style={{ marginLeft: 16 }}>当前学院暂无专业，请先创建专业</Text>}
+          </div>
+        </Form>
+      </Card>
 
       {result && (
-        <div className="card">
-          <h3>分配结果</h3>
-          <div style={{ marginBottom: 10 }}>
-            考试ID：{result.examId}，考试名称：{result.examName}，考生数：{result.studentCount}，
-            房间数：{result.roomCount}，单房间容量：{result.roomCapacity}
-          </div>
-          <div className="table-wrap">
-            <table className="table">
-              <thead>
-                <tr>
-                  <th>房间号</th>
-                  <th>房间ID</th>
-                  <th>监考老师ID</th>
-                  <th>房间容量</th>
-                  <th>已分配考生数</th>
-                </tr>
-              </thead>
-              <tbody>
-                {result.rooms?.map((r) => (
-                  <tr key={r.examRoomId}>
-                    <td>{r.roomId}</td>
-                    <td>{r.examRoomId}</td>
-                    <td>{r.invigilatorId}</td>
-                    <td>{r.capacity}</td>
-                    <td>{r.studentCount}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </div>
+        <Card className="glass-effect" bordered={false} style={{ marginBottom: 24, borderRadius: 12, border: '1px solid #52c41a' }}>
+          <Title level={4} style={{ color: '#52c41a', marginTop: 0 }}>✅ 自动分房结果</Title>
+          <Space split={<Divider type="vertical" />} style={{ marginBottom: 16 }}>
+            <Text>名称：<Text strong>{result.examName}</Text></Text>
+            <Text>总人数：<Text strong>{result.studentCount}</Text></Text>
+            <Text>考场数：<Text strong>{result.roomCount}</Text></Text>
+          </Space>
+        </Card>
       )}
 
-      <div className="card">
-        <h3>考试与考场查看</h3>
-        <div className="form-row cols-3" style={{ marginBottom: 10 }}>
-          <button type="button" onClick={loadExams} disabled={listLoading}>刷新考试列表</button>
+      <Card className="glass-effect" bordered={false} style={{ borderRadius: 12 }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
+          <Title level={4} style={{ margin: 0 }}>考试与考场总览</Title>
+          <Button onClick={loadExams} loading={listLoading} icon={<ReloadOutlined />}>刷新列表</Button>
         </div>
-        <div className="table-wrap">
-          <table className="table">
-            <thead>
-              <tr>
-                <th>考试ID</th>
-                <th>考试名称</th>
-                <th>学院</th>
-                <th>专业</th>
-                <th>开始时间</th>
-                <th>结束时间</th>
-                <th>操作</th>
-              </tr>
-            </thead>
-            <tbody>
-              {examList.map((e) => (
-                <tr key={e.id}>
-                  <td>{e.id}</td>
-                  <td>{e.name}</td>
-                  <td>{e.departmentName || "-"}</td>
-                  <td>{e.majorName || "-"}</td>
-                  <td>{e.startAt || "-"}</td>
-                  <td>{e.endAt || "-"}</td>
-                  <td>
-                    <button type="button" onClick={() => viewRooms(e.id)} disabled={listLoading}>
-                      查看考场
-                    </button>
-                  </td>
-                </tr>
-              ))}
-              {(!examList || examList.length === 0) && (
-                <tr><td colSpan={7} style={{ color: "#777" }}>暂无考试数据</td></tr>
-              )}
-            </tbody>
-          </table>
-        </div>
+        <Table 
+          columns={[
+            { title: '考试ID', dataIndex: 'id', width: 80 },
+            { title: '考试名称', dataIndex: 'name' },
+            { title: '学院', dataIndex: 'departmentName', render: t => t || "-" },
+            { title: '专业', dataIndex: 'majorName', render: t => t || "-" },
+            { title: '开始时间', dataIndex: 'startAt', render: t => t || "-" },
+            { title: '结束时间', dataIndex: 'endAt', render: t => t || "-" },
+            { 
+              title: '操作', 
+              key: 'action',
+              render: (_, record) => (
+                <Button type="link" onClick={() => viewRooms(record.id)} disabled={listLoading}>查看考场分配</Button>
+              )
+            },
+          ]}
+          dataSource={examList}
+          rowKey="id"
+          loading={listLoading}
+          pagination={{ pageSize: 5 }}
+          style={{ background: 'transparent' }} 
+        />
+      </Card>
 
-        {selectedExamId && (
-          <>
-            <h4 style={{ marginTop: 16 }}>考试 {selectedExamId} 的考场</h4>
-            <div className="table-wrap">
-              <table className="table">
-                <thead>
-                  <tr>
-                    <th>房间号</th>
-                    <th>监考老师</th>
-                    <th>容量</th>
-                    <th>已分配人数</th>
-                    <th>考生名单</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {rooms.map((r) => (
-                    <tr key={r.examRoomId}>
-                      <td>{r.roomId}</td>
-                      <td>{r.invigilatorName || `ID:${r.invigilatorId}`}</td>
-                      <td>{r.capacity}</td>
-                      <td>{r.studentCount}</td>
-                      <td>
-                        {(r.students || []).map((s) => s.studentName).join("、") || "-"}
-                      </td>
-                    </tr>
-                  ))}
-                  {(!rooms || rooms.length === 0) && (
-                    <tr><td colSpan={5} style={{ color: "#777" }}>暂无考场数据</td></tr>
-                  )}
-                </tbody>
-              </table>
-            </div>
-          </>
-        )}
-      </div>
-    </>
+      {/* 这是一个 Ant Design 的模态框组件，用于替代原本直接渲染在页面底部的表格 */}
+      <Modal
+        title={`考试 ${selectedExamId} 的考场分配详情`}
+        open={!!selectedExamId}
+        onCancel={() => setSelectedExamId("")}
+        width={900}
+        footer={[
+          <Button key="close" type="primary" onClick={() => setSelectedExamId("")}>关闭</Button>
+        ]}
+
+        style={{content:{
+          backgroundColor: 'rgba(255, 255, 255)', // 核心透明度修改位置（0.45 可以自行调高或调低）
+          backdropFilter:'none',
+          border: '1px solid rgba(255, 255, 255, 0.9)', // 高光边框
+          WebkitBackdropFilter: 'none',
+        }}}
+      >
+        <Table 
+          size="middle"
+          style={{ backgroundColor: 'white', borderRadius: '8px' }}
+          columns={[
+            { title: '房间号', dataIndex: 'roomId', width: 100 },
+            { title: '监考老师', key: 'teacher', render: (_, r) => r.invigilatorName || `ID: ${r.invigilatorId}`, width: 120 },
+            { title: '容量/已分配', key: 'count', render: (_, r) => `${r.capacity} / ${r.studentCount}`, width: 120 },
+            { title: '考生名单', key: 'students', render: (_, r) => (r.students || []).map(s => s.studentName).join("、") || "-" },
+          ]}
+          dataSource={rooms}
+          rowKey="examRoomId"
+          pagination={{ pageSize: 8 }}
+        />
+      </Modal>
+
+    </div>
   );
 }

@@ -1,14 +1,14 @@
 import React, { useEffect, useState } from "react";
 import { api } from "../apiClient";
+import { Table, Card, Form, Input, Button, Typography, message } from "antd";
+import { PlusOutlined } from "@ant-design/icons";
+
+const { Title } = Typography;
 
 export default function Admin() {
   const [list, setList] = useState([]);
-  const [form, setForm] = useState({ schoolName: "", adminName: "", adminEmail: "" ,domain: "" });
-  const [msg, setMsg] = useState("");
   const [loading, setLoading] = useState(true);
-
-  const th = { textAlign: "left", padding: "10px 12px", background: "#f5f7fa", fontWeight: 600, fontSize: 14, borderBottom: "1px solid #eaeaea" };
-  const td = { padding: "10px 12px", borderTop: "1px solid #f0f0f0", verticalAlign: "top" };
+  const [form] = Form.useForm(); // 控制表单实例
 
   async function load() {
     setLoading(true);
@@ -16,7 +16,7 @@ export default function Admin() {
       const r = await api.get("/admin/schools");
       setList(r.data || []);
     } catch (e) {
-      setMsg(e.message);
+      message.error(e.message || "加载列表失败");
     } finally {
       setLoading(false);
     }
@@ -24,80 +24,84 @@ export default function Admin() {
 
   useEffect(() => { load(); }, []);
 
-  async function createSchool(e) {
-    e.preventDefault();
-    setMsg("");
+  async function onFinish(values) {
     try {
-      await api.post("/admin/schools", form);
-      setMsg("创建成功（已向管理员邮箱发送初始密码）");
-      setForm({ schoolName: "", adminName: "", adminEmail: "",domain: "" });
-      await load();
+      await api.post("/admin/schools", values);
+      message.success("创建成功（已向管理员邮箱发送初始密码）");
+      form.resetFields(); // 清空表单
+      await load(); // 刷新列表
     } catch (e) {
-      setMsg(e.message);
+      message.error(e.message || "创建失败");
     }
   }
 
+  // Ant Design Table 的列配置
+  const columns = [
+    {
+      title: "学校名称",
+      dataIndex: "name",
+      key: "name",
+    },
+    {
+      title: "管理员姓名",
+      dataIndex: "adminName",
+      key: "adminName",
+      render: (text) => text || "--",
+    },
+    {
+      title: "管理员邮箱",
+      dataIndex: "adminEmail",
+      key: "adminEmail",
+      render: (text) => text || "--",
+    },
+  ];
+
   return (
-    <div style={{ padding: 20, maxWidth: 960, margin: "0 auto" }}>
-      <h3 style={{ margin: "0 0 12px" }}>添加学校 + 管理员</h3>
-      <form onSubmit={createSchool} style={{ display: "grid", gap: 10, gridTemplateColumns: "1fr 1fr 1fr auto", alignItems: "center" }}>
-        <input
-          placeholder="学校名称"
-          value={form.schoolName}
-          onChange={(e) => setForm({ ...form, schoolName: e.target.value })}
-        />
-                <input
-          placeholder="学校邮箱"
-          value={form.domain}
-          onChange={(e) => setForm({ ...form, domain: e.target.value })}
-        />
-        <input
-          placeholder="管理员姓名"
-          value={form.adminName}
-          onChange={(e) => setForm({ ...form, adminName: e.target.value })}
-        />
-        <input
-          placeholder="管理员邮箱"
-          value={form.adminEmail}
-          onChange={(e) => setForm({ ...form, adminEmail: e.target.value })}
-        />
-        <button style={{ height: 36 }}>创建</button>
-      </form>
-      {msg && <div style={{ marginTop: 10, color: "#555" }}>{msg}</div>}
+    <div style={{ padding: "20px 24px", maxWidth: 1200, margin: "0 auto" }}>
+      
+      {/* 顶部：添加学校表单区域 */}
+      <Card className="glass-effect" bordered={false} style={{ marginBottom: 24, borderRadius: 12 }}>
+        <Title level={4} style={{ marginTop: 0, marginBottom: 20 }}>添加学校 + 管理员</Title>
+        <Form 
+          form={form} 
+          layout="inline" 
+          onFinish={onFinish}
+          style={{ gap: '12px 0' }} // 换行时的间距
+        >
+          <Form.Item name="schoolName" rules={[{ required: true, message: '必填' }]}>
+            <Input placeholder="学校名称" />
+          </Form.Item>
+          <Form.Item name="domain" rules={[{ required: true, message: '必填' }]}>
+            <Input placeholder="学校邮箱后缀(如 edu.cn)" />
+          </Form.Item>
+          <Form.Item name="adminName" rules={[{ required: true, message: '必填' }]}>
+            <Input placeholder="管理员姓名" />
+          </Form.Item>
+          <Form.Item name="adminEmail" rules={[{ required: true, message: '必填' }, { type: 'email', message: '格式不正确' }]}>
+            <Input placeholder="管理员邮箱" />
+          </Form.Item>
+          <Form.Item>
+            <Button type="primary" htmlType="submit" icon={<PlusOutlined />}>
+              创 建
+            </Button>
+          </Form.Item>
+        </Form>
+      </Card>
 
-      <div style={{ height: 20 }} />
+      {/* 底部：学校列表表格区域 */}
+      <Card className="glass-effect" bordered={false} style={{ borderRadius: 12 }}>
+        <Title level={4} style={{ marginTop: 0, marginBottom: 20 }}>学校列表（含管理员）</Title>
+        <Table 
+          columns={columns} 
+          dataSource={list} 
+          rowKey={(record, index) => record.id ?? index} 
+          loading={loading}
+          pagination={{ pageSize: 10 }} // 自动分页
+          // 让表格的底层也变成透明，配合外层的毛玻璃
+          style={{ background: 'transparent' }} 
+        />
+      </Card>
 
-      <h2 style={{ margin: "0 0 12px" }}>学校列表（含管理员）</h2>
-      <div style={{ border: "1px solid #eee", borderRadius: 8, overflow: "hidden" }}>
-        {loading ? (
-          <div style={{ padding: 16 }}>加载中...</div>
-        ) : list.length === 0 ? (
-          <div style={{ padding: 16, color: "#777" }}>暂无数据</div>
-        ) : (
-          <div style={{ overflowX: "auto" }}>
-            <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 14 }}>
-              <thead>
-                <tr>
-                  {/* <th style={th}>#</th> */}
-                  <th style={th}>学校名称</th>
-                  <th style={th}>管理员姓名</th>
-                  <th style={th}>管理员邮箱</th>
-                </tr>
-              </thead>
-              <tbody>
-                {list.map((s, i) => (
-                  <tr key={s.id ?? i} style={{ background: i % 2 ? "#fcfcfc" : "#fff" }}>
-                    {/* <td style={td}>{i + 1}</td> */}
-                    <td style={td}>{s.name}</td>
-                    <td style={td}>{s.adminName || "--"}</td>
-                    <td style={td}>{s.adminEmail || "--"}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        )}
-      </div>
     </div>
   );
 }

@@ -1,6 +1,10 @@
 import React, { useEffect, useState } from "react";
 import { useOutletContext } from "react-router-dom";
 import { api } from "../../apiClient";
+import { Table, Card, Form, Input, Select, Button, Typography, Space, message } from "antd";
+import { UserAddOutlined, ReloadOutlined } from "@ant-design/icons";
+
+const { Title } = Typography;
 
 export default function SchoolTeachersPages() {
   const { school } = useOutletContext();
@@ -10,41 +14,44 @@ export default function SchoolTeachersPages() {
   const [majorId, setMajorId] = useState(null);
 
   const [list, setList] = useState([]);
-  const [msg, setMsg] = useState("");
   const [loading, setLoading] = useState(false);
+  const [form] = Form.useForm();
 
   async function loadDepartments() {
-    const d = await api.get(`/school/${school.id}/departments`);
-    const depts = d.data || [];
-    setDepts(depts);
-    const first = depts[0]?.id;
-    if (first) {
-      setDeptId(first);
-      await onChangeDeptInternal(first, true);
-    }
+    try {
+      const d = await api.get(`/school/${school.id}/departments`);
+      const depts = d.data || [];
+      setDepts(depts);
+      const first = depts[0]?.id;
+      if (first) {
+        setDeptId(first);
+        form.setFieldsValue({ departmentId: first });
+        await onChangeDeptInternal(first, true);
+      }
+    } catch (e) { message.error("加载学院失败"); }
   }
 
   async function onChangeDeptInternal(depId, init = false) {
-    const m = await api.get(`/school/${school.id}/majors?departmentId=${depId}`);
-    const ms = m.data || [];
-    setMajors(ms);
-    const firstMajor = ms[0]?.id || null;
-    setMajorId(firstMajor);
-    await loadList(depId, init ? firstMajor : majorId);
+    try {
+      const m = await api.get(`/school/${school.id}/majors?departmentId=${depId}`);
+      const ms = m.data || [];
+      setMajors(ms);
+      const firstMajor = ms[0]?.id || null;
+      setMajorId(firstMajor);
+      form.setFieldsValue({ majorId: firstMajor });
+      await loadList(depId, init ? firstMajor : majorId);
+    } catch (e) { message.error("加载专业失败"); }
   }
 
   async function loadList(departmentId, mId) {
     setLoading(true);
     try {
       const r = await api.get(`/school/${school.id}/teachers`, {
-        params: {
-          departmentId: departmentId || undefined,
-          majorId: mId || undefined
-        }
+        params: { departmentId: departmentId || undefined, majorId: mId || undefined }
       });
       setList(r.data || []);
     } catch (e) {
-      setMsg(e.message);
+      message.error("加载老师列表失败: " + e.message);
     } finally {
       setLoading(false);
     }
@@ -52,89 +59,74 @@ export default function SchoolTeachersPages() {
 
   useEffect(() => { if (school?.id) loadDepartments(); }, [school?.id]);
 
-  async function onChangeDept(e) {
-    const depId = Number(e.target.value);
-    setDeptId(depId);
-    await onChangeDeptInternal(depId);
+  async function onChangeDept(v) {
+    setDeptId(v);
+    await onChangeDeptInternal(v);
   }
 
-  async function onChangeMajor(e) {
-    const mId = Number(e.target.value);
-    setMajorId(mId);
-    await loadList(deptId, mId);
+  async function onChangeMajor(v) {
+    setMajorId(v);
+    await loadList(deptId, v);
   }
 
-  async function addTeacher(e) {
-    e.preventDefault();
+  async function onFinish(values) {
     const payload = {
-      name: e.target.name.value.trim(),
-      email: e.target.email.value.trim(),
-      departmentId: Number(deptId),
-      majorId: Number(majorId)
+      name: values.name.trim(),
+      email: values.email.trim(),
+      departmentId: Number(values.departmentId),
+      majorId: Number(values.majorId)
     };
     try {
       await api.post(`/school/${school.id}/teachers`, payload);
-      e.target.reset();
-      setMsg("已创建老师账号并发送初始密码（若邮件失败请手动通知）");
+      form.resetFields(['name', 'email']);
+      message.success("已创建老师账号并发送初始密码");
       await loadList(deptId, majorId);
-    } catch (e) { setMsg(e.message); }
+    } catch (e) { message.error(e.message || "创建失败"); }
   }
 
+  const columns = [
+    { title: "ID", dataIndex: "id", key: "id", render: (t, r, i) => i + 1, width: 60 },
+    { title: "姓名", dataIndex: "name", key: "name" },
+    { title: "邮箱", dataIndex: "email", key: "email" },
+    { title: "学院", dataIndex: "departmentName", key: "departmentName", render: t => t || "-" },
+    { title: "专业", dataIndex: "majorName", key: "majorName", render: t => t || "-" },
+    { title: "创建时间", dataIndex: "createdAt", key: "createdAt", render: t => t || "-" },
+  ];
+
   return (
-    <>
-      <div className="card">
-        <h3>添加监考老师</h3>
-        <form onSubmit={addTeacher} className="form-row cols-4">
-          <input name="name" placeholder="姓名" required />
-          <input name="email" placeholder="邮箱" type="email" required />
-          <select value={deptId ?? ""} onChange={onChangeDept} required>
-            {departments.map(d => <option key={d.id} value={d.id}>{d.name}</option>)}
-          </select>
-          <select value={majorId ?? ""} onChange={onChangeMajor} required disabled={!majors.length}>
-            {majors.map(m => <option key={m.id} value={m.id}>{m.name}</option>)}
-          </select>
-          <button disabled={!majors.length}>创建老师账号</button>
-        </form>
-        {msg && <div className="msg">{msg}</div>}
-      </div>
+    <div style={{ maxWidth: 1200, margin: "0 auto" }}>
+      <Card className="glass-effect" bordered={false} style={{ marginBottom: 24, borderRadius: 12 }}>
+        <Title level={4} style={{ marginTop: 0, marginBottom: 20 }}>添加监考老师</Title>
+        <Form form={form} layout="inline" onFinish={onFinish} style={{ gap: '12px 0' }}>
+          <Form.Item name="name" rules={[{ required: true, message: '必填' }]}>
+            <Input placeholder="姓名" />
+          </Form.Item>
+          <Form.Item name="email" rules={[{ required: true, message: '必填' }, { type: 'email', message: '格式错误' }]}>
+            <Input placeholder="邮箱" />
+          </Form.Item>
+          <Form.Item name="departmentId" rules={[{ required: true, message: '必填' }]}>
+            <Select style={{ width: 180 }} onChange={onChangeDept} options={departments.map(d => ({ value: d.id, label: d.name }))} />
+          </Form.Item>
+          <Form.Item name="majorId" rules={[{ required: true, message: '必填' }]}>
+            <Select style={{ width: 180 }} onChange={onChangeMajor} disabled={!majors.length} options={majors.map(m => ({ value: m.id, label: m.name }))} />
+          </Form.Item>
+          <Form.Item>
+            <Button type="primary" htmlType="submit" disabled={!majors.length} icon={<UserAddOutlined />}>创建老师账号</Button>
+          </Form.Item>
+        </Form>
+      </Card>
 
-      <div className="card">
-        <h3>老师列表</h3>
-        <div className="form-row cols-3" style={{ marginBottom: 10 }}>
-          <select value={deptId ?? ""} onChange={onChangeDept}>
-            {departments.map(d => <option key={d.id} value={d.id}>{d.name}</option>)}
-          </select>
-          <select value={majorId ?? ""} onChange={onChangeMajor} disabled={!majors.length}>
-            {majors.map(m => <option key={m.id} value={m.id}>{m.name}</option>)}
-          </select>
-          <button type="button" onClick={() => loadList(deptId, majorId)}>刷新</button>
+      <Card className="glass-effect" bordered={false} style={{ borderRadius: 12 }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
+          <Title level={4} style={{ margin: 0 }}>老师列表</Title>
+          <Space>
+            <Select value={deptId} style={{ width: 150 }} onChange={onChangeDept} options={departments.map(d => ({ value: d.id, label: d.name }))} />
+            <Select value={majorId} style={{ width: 150 }} onChange={onChangeMajor} disabled={!majors.length} options={majors.map(m => ({ value: m.id, label: m.name }))} />
+            <Button onClick={() => loadList(deptId, majorId)} icon={<ReloadOutlined />}>刷新</Button>
+          </Space>
         </div>
-
-        <div className="table-wrap">
-          {loading ? <div style={{ padding: 8 }}>加载中...</div> : (
-            <table className="table">
-              <thead>
-                <tr><th>id</th><th>姓名</th><th>邮箱</th><th>学院</th><th>专业</th><th>创建时间</th></tr>
-              </thead>
-              <tbody>
-                {list.map((t, i) => (
-                  <tr key={t.id ?? i}>
-                    <td>{i + 1}</td>
-                    <td>{t.name}</td>
-                    <td>{t.email}</td>
-                    <td>{t.departmentName || "-"}</td>
-                    <td>{t.majorName || "-"}</td>
-                    <td>{t.createdAt || "-"}</td>
-                  </tr>
-                ))}
-                {(!list || list.length === 0) && (
-                  <tr><td colSpan={6} style={{ color: "#777" }}>暂无数据</td></tr>
-                )}
-              </tbody>
-            </table>
-          )}
-        </div>
-      </div>
-    </>
+        <Table columns={columns} dataSource={list} rowKey="id" loading={loading} pagination={{ pageSize: 10 }} style={{ background: 'transparent' }} />
+      </Card>
+    </div>
   );
 }

@@ -1,11 +1,14 @@
-// src/pages/student/layouts/StudentLayout.jsx
 import { Outlet } from "react-router-dom";
-import "../../../css/student.css";
+import { Layout } from "antd";
+
+const { Content } = Layout;
 
 export default function StudentLayout() {
   return (
-    <main className="student-container">
-      <Outlet />
-    </main>
+    <Layout style={{ minHeight: '100vh', background: 'transparent' }}>
+      <Content style={{ padding: '24px', maxWidth: 1200, margin: '0 auto', width: '100%' }}>
+        <Outlet />
+      </Content>
+    </Layout>
   );
 }

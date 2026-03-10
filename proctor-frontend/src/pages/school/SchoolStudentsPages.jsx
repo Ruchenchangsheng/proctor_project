@@ -1,6 +1,10 @@
 import React, { useEffect, useState } from "react";
 import { useOutletContext } from "react-router-dom";
 import { api } from "../../apiClient";
+import { Table, Card, Form, Input, Select, Button, Typography, Space, Upload, message } from "antd";
+import { UserAddOutlined, ReloadOutlined, UploadOutlined } from "@ant-design/icons";
+
+const { Title } = Typography;
 
 export default function SchoolStudentsPages() {
   const { school } = useOutletContext();
@@ -10,128 +14,128 @@ export default function SchoolStudentsPages() {
   const [majorId, setMajorId] = useState(null);
 
   const [list, setList] = useState([]);
-  const [msg, setMsg] = useState("");
   const [loading, setLoading] = useState(false);
+  const [submitLoading, setSubmitLoading] = useState(false);
+  const [form] = Form.useForm();
 
   async function loadDepartments() {
-    const d = await api.get(`/school/${school.id}/departments`);
-    const depts = d.data || [];
-    setDepts(depts);
-    const first = depts[0]?.id;
-    if (first) {
-      setDeptId(first);
-      await onChangeDeptInternal(first, true);
-    }
+    try {
+      const d = await api.get(`/school/${school.id}/departments`);
+      const depts = d.data || [];
+      setDepts(depts);
+      const first = depts[0]?.id;
+      if (first) {
+        setDeptId(first);
+        form.setFieldsValue({ departmentId: first });
+        await onChangeDeptInternal(first, true);
+      }
+    } catch (e) { message.error("加载学院失败"); }
   }
 
   async function onChangeDeptInternal(depId, init = false) {
-    const m = await api.get(`/school/${school.id}/majors?departmentId=${depId}`);
-    const ms = m.data || [];
-    setMajors(ms);
-    const firstMajor = ms[0]?.id || null;
-    setMajorId(firstMajor);
-    await loadList(depId, init ? firstMajor : majorId);
+    try {
+      const m = await api.get(`/school/${school.id}/majors?departmentId=${depId}`);
+      const ms = m.data || [];
+      setMajors(ms);
+      const firstMajor = ms[0]?.id || null;
+      setMajorId(firstMajor);
+      form.setFieldsValue({ majorId: firstMajor });
+      await loadList(depId, init ? firstMajor : majorId);
+    } catch (e) { message.error("加载专业失败"); }
   }
 
   async function loadList(departmentId, mId) {
     setLoading(true);
     try {
       const r = await api.get(`/school/${school.id}/students`, {
-        params: {
-          departmentId: departmentId || undefined,
-          majorId: mId || undefined
-        }
+        params: { departmentId: departmentId || undefined, majorId: mId || undefined }
       });
       setList(r.data || []);
-    } catch (e) {
-      setMsg(e.message);
-    } finally {
-      setLoading(false);
-    }
+    } catch (e) { message.error("加载学生失败"); } 
+    finally { setLoading(false); }
   }
 
   useEffect(() => { if (school?.id) loadDepartments(); }, [school?.id]);
 
-  async function onChangeDept(e) {
-    const depId = Number(e.target.value);
-    setDeptId(depId);
-    await onChangeDeptInternal(depId);
+  async function onChangeDept(v) {
+    setDeptId(v);
+    await onChangeDeptInternal(v);
   }
 
-  async function onChangeMajor(e) {
-    const mId = Number(e.target.value);
-    setMajorId(mId);
-    await loadList(deptId, mId);
+  async function onChangeMajor(v) {
+    setMajorId(v);
+    await loadList(deptId, v);
   }
 
-  async function addStudent(e) {
-    e.preventDefault();
-    if (!majorId) { setMsg("请先为该学院添加专业，再创建学生账号"); return; }
-    const fd = new FormData(e.target); // name,email,departmentId,majorId,photo
+  async function onFinish(values) {
+    if (!majorId) { message.error("请先为该学院添加专业"); return; }
+    if (!values.photo || values.photo.fileList.length === 0) { message.error("请上传证件照"); return; }
+    
+    setSubmitLoading(true);
+    const fd = new FormData();
+    fd.append("name", values.name.trim());
+    fd.append("email", values.email.trim());
+    fd.append("departmentId", values.departmentId);
+    fd.append("majorId", values.majorId);
+    fd.append("photo", values.photo.fileList[0].originFileObj);
+
     try {
-      await api.post(`/school/${school.id}/students`, fd); // 不要手动设置 Content-Type
-      e.target.reset();
-      setMsg("已创建学生账号并发送初始密码（已提取人脸特征）");
+      await api.post(`/school/${school.id}/students`, fd);
+      form.resetFields(['name', 'email', 'photo']);
+      message.success("已创建学生账号并发送初始密码（已提取人脸特征）");
       await loadList(deptId, majorId);
-    } catch (e) { setMsg(e.message); }
+    } catch (e) { message.error(e.message || "创建失败"); }
+    finally { setSubmitLoading(false); }
   }
+
+  const columns = [
+    { title: "ID", dataIndex: "id", key: "id", render: (t, r, i) => i + 1, width: 60 },
+    { title: "姓名", dataIndex: "name", key: "name" },
+    { title: "邮箱", dataIndex: "email", key: "email" },
+    { title: "学院", dataIndex: "departmentName", key: "departmentName", render: t => t || "-" },
+    { title: "专业", dataIndex: "majorName", key: "majorName", render: t => t || "-" },
+    { title: "创建时间", dataIndex: "createdAt", key: "createdAt", render: t => t || "-" },
+  ];
 
   return (
-    <>
-      <div className="card">
-        <h3>添加考生（含证件照）</h3>
-        <form onSubmit={addStudent} className="form-row cols-5">
-          <input name="name" placeholder="姓名" required />
-          <input name="email" placeholder="邮箱" type="email" required />
-          <select name="departmentId" value={deptId ?? ""} onChange={onChangeDept} required>
-            {departments.map(d => <option key={d.id} value={d.id}>{d.name}</option>)}
-          </select>
-          <select name="majorId" value={majorId ?? ""} onChange={onChangeMajor} required disabled={!majors.length}>
-            {majors.map(m => <option key={m.id} value={m.id}>{m.name}</option>)}
-          </select>
-          <input type="file" name="photo" accept="image/*" required />
-          <button disabled={!majors.length}>创建学生账号</button>
-        </form>
-        {msg && <div className="msg">{msg}</div>}
-      </div>
+    <div style={{ maxWidth: 1200, margin: "0 auto" }}>
+      <Card className="glass-effect" bordered={false} style={{ marginBottom: 24, borderRadius: 12 }}>
+        <Title level={4} style={{ marginTop: 0, marginBottom: 20 }}>添加考生（含证件照）</Title>
+        <Form form={form} layout="inline" onFinish={onFinish} style={{ gap: '12px 0' }}>
+          <Form.Item name="name" rules={[{ required: true, message: '必填' }]}>
+            <Input placeholder="姓名" />
+          </Form.Item>
+          <Form.Item name="email" rules={[{ required: true, message: '必填' }, { type: 'email', message: '格式错误' }]}>
+            <Input placeholder="邮箱" />
+          </Form.Item>
+          <Form.Item name="departmentId" rules={[{ required: true, message: '必填' }]}>
+            <Select style={{ width: 160 }} onChange={onChangeDept} options={departments.map(d => ({ value: d.id, label: d.name }))} />
+          </Form.Item>
+          <Form.Item name="majorId" rules={[{ required: true, message: '必填' }]}>
+            <Select style={{ width: 160 }} onChange={onChangeMajor} disabled={!majors.length} options={majors.map(m => ({ value: m.id, label: m.name }))} />
+          </Form.Item>
+          <Form.Item name="photo" rules={[{ required: true, message: '请上传照片' }]}>
+            <Upload beforeUpload={() => false} maxCount={1} accept="image/*">
+              <Button icon={<UploadOutlined />}>选择证件照</Button>
+            </Upload>
+          </Form.Item>
+          <Form.Item>
+            <Button type="primary" htmlType="submit" disabled={!majors.length} loading={submitLoading} icon={<UserAddOutlined />}>创建学生账号</Button>
+          </Form.Item>
+        </Form>
+      </Card>
 
-      <div className="card">
-        <h3>学生列表</h3>
-        <div className="form-row cols-3" style={{ marginBottom: 10 }}>
-          <select value={deptId ?? ""} onChange={onChangeDept}>
-            {departments.map(d => <option key={d.id} value={d.id}>{d.name}</option>)}
-          </select>
-          <select value={majorId ?? ""} onChange={onChangeMajor} disabled={!majors.length}>
-            {majors.map(m => <option key={m.id} value={m.id}>{m.name}</option>)}
-          </select>
-          <button type="button" onClick={() => loadList(deptId, majorId)}>刷新</button>
+      <Card className="glass-effect" bordered={false} style={{ borderRadius: 12 }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
+          <Title level={4} style={{ margin: 0 }}>学生列表</Title>
+          <Space>
+            <Select value={deptId} style={{ width: 150 }} onChange={onChangeDept} options={departments.map(d => ({ value: d.id, label: d.name }))} />
+            <Select value={majorId} style={{ width: 150 }} onChange={onChangeMajor} disabled={!majors.length} options={majors.map(m => ({ value: m.id, label: m.name }))} />
+            <Button onClick={() => loadList(deptId, majorId)} icon={<ReloadOutlined />}>刷新</Button>
+          </Space>
         </div>
-
-        <div className="table-wrap">
-          {loading ? <div style={{ padding: 8 }}>加载中...</div> : (
-            <table className="table">
-              <thead>
-                <tr><th>id</th><th>姓名</th><th>邮箱</th><th>学院</th><th>专业</th><th>创建时间</th></tr>
-              </thead>
-              <tbody>
-                {list.map((s, i) => (
-                  <tr key={s.id ?? i}>
-                    <td>{i + 1}</td>
-                    <td>{s.name}</td>
-                    <td>{s.email}</td>
-                    <td>{s.departmentName || "-"}</td>
-                    <td>{s.majorName || "-"}</td>
-                    <td>{s.createdAt || "-"}</td>
-                  </tr>
-                ))}
-                {(!list || list.length === 0) && (
-                  <tr><td colSpan={6} style={{ color: "#777" }}>暂无数据</td></tr>
-                )}
-              </tbody>
-            </table>
-          )}
-        </div>
-      </div>
-    </>
+        <Table columns={columns} dataSource={list} rowKey="id" loading={loading} pagination={{ pageSize: 10 }} style={{ background: 'transparent' }} />
+      </Card>
+    </div>
   );
 }

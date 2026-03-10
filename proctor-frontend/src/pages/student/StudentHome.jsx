@@ -1,12 +1,16 @@
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { api } from "../../apiClient";
+import { Table, Card, Typography, Image, Button, Tag, Space, Descriptions, message, Spin } from "antd";
+import { LoginOutlined } from "@ant-design/icons";
+
+const { Title, Text } = Typography;
 
 export default function StudentHome() {
   const [p, setP] = useState(null);
   const [photoUrl, setPhotoUrl] = useState(null);
   const [sessions, setSessions] = useState([]);
-  const [msg, setMsg] = useState("");
+  const [loading, setLoading] = useState(true);
   const navigate = useNavigate();
 
   useEffect(() => {
@@ -18,69 +22,66 @@ export default function StudentHome() {
         setSessions(exams.data || []);
         try {
           const img = await api.get("/student/photo", { responseType: "blob" });
-          if (img.status !== 204) setPhotoUrl(URL.createObjectURL(img.data));
-        } catch {
-          setPhotoUrl(null);
-        }
+          if (img.status !== 204) {
+             const url = URL.createObjectURL(img.data);
+             setPhotoUrl(url);
+          }
+        } catch (e) { setPhotoUrl(null); }
       } catch (e) {
-        setMsg(e.message);
-      }
+        message.error("加载数据失败: " + e.message);
+      } finally { setLoading(false); }
     })();
   }, []);
 
-  if (!p) return <div className="card">{msg || "加载中..."}</div>;
+  if (loading) return <div style={{ textAlign: 'center', marginTop: '20vh' }}><Spin size="large" tip="加载中..." /></div>;
+
+  const columns = [
+    { title: "考试名称", dataIndex: "examName", key: "examName", render: text => <Text strong>{text}</Text> },
+    { title: "开始时间", dataIndex: "startAt", key: "startAt" },
+    { title: "考场", dataIndex: "roomId", key: "roomId", render: text => <Tag color="blue">{text || "-"}</Tag> },
+    { 
+      title: "状态", 
+      dataIndex: "phase", 
+      key: "phase",
+      render: phase => (
+        <Tag color={phase === "RUNNING" ? "green" : phase === "COMPLETED" ? "default" : "orange"}>
+          {phase === "RUNNING" ? "进行中" : phase === "COMPLETED" ? "已结束" : "待开始"}
+        </Tag>
+      )
+    },
+    { 
+      title: "操作", 
+      key: "action",
+      render: (_, record) => (
+        <Button 
+          type="primary" 
+          icon={<LoginOutlined />}
+          disabled={record.phase === "COMPLETED"}
+          onClick={() => navigate(`/student/exams/${record.sessionId}/verify`)} // 修正路径
+        >
+          进入考试
+        </Button>
+      )
+    },
+  ];
 
   return (
-    <div className="card">
-      <h2>考生主页</h2>
-      <div className="profile">
-        <div className="profile-photo">
-          {photoUrl ? <img src={photoUrl} alt="注册照" /> : <div className="no-photo">无登记照片</div>}
+    <Space direction="vertical" size="large" style={{ width: '100%' }}>
+      <Card className="glass-effect" bordered={false} style={{ borderRadius: 16 }}>
+        <Title level={3}>🎓 考生主页</Title>
+        <div style={{ display: 'flex', gap: 32, flexWrap: 'wrap' }}>
+          <Image width={120} height={160} src={photoUrl} fallback="https://via.placeholder.com/120x160?text=无照片" style={{ borderRadius: 8, objectFit: 'cover' }} />
+          <Descriptions column={{ xs: 1, sm: 2 }} style={{ flex: 1 }}>
+            <Descriptions.Item label="姓名"><Text strong>{p?.name}</Text></Descriptions.Item>
+            <Descriptions.Item label="学校">{p?.schoolName}</Descriptions.Item>
+            <Descriptions.Item label="学院">{p?.departmentName}</Descriptions.Item>
+            <Descriptions.Item label="专业">{p?.majorName || "-"}</Descriptions.Item>
+          </Descriptions>
         </div>
-        <div className="profile-info">
-          <div><b>姓名：</b>{p.name}</div>
-          <div><b>学校：</b>{p.schoolName || "-"}</div>
-          <div><b>学院：</b>{p.departmentName || "-"}</div>
-          <div><b>专业：</b>{p.majorName || "-"}</div>
-        </div>
-      </div>
-
-      <div style={{ marginTop: 20 }}>
-        <h3>考试场次与考场信息</h3>
-        <div className="table-wrap">
-          <table className="table">
-            <thead>
-              <tr>
-                <th>考试名称</th>
-                <th>开始时间</th>
-                <th>结束时间</th>
-                <th>考场</th>
-                <th>状态</th>
-                <th>操作</th>
-              </tr>
-            </thead>
-            <tbody>
-              {sessions.map((s) => (
-                <tr key={s.sessionId}>
-                  <td>{s.examName}</td>
-                  <td>{s.startAt || "-"}</td>
-                  <td>{s.endAt || "-"}</td>
-                  <td>{s.roomId || "-"}</td>
-                  <td>{s.phase === "RUNNING" ? "进行中" : s.phase === "COMPLETED" ? "已结束" : "待开始"}</td>
-                  <td>
-                    <button type="button" onClick={() => navigate(`/student/exams/${s.sessionId}/verify`)} disabled={s.phase === "COMPLETED"}>
-                      进入考试
-                    </button>
-                  </td>
-                </tr>
-              ))}
-              {(!sessions || sessions.length === 0) && (
-                <tr><td colSpan={6} style={{ color: "#777" }}>暂无考试场次</td></tr>
-              )}
-            </tbody>
-          </table>
-        </div>
-      </div>
-    </div>
+      </Card>
+      <Card className="glass-effect" bordered={false} style={{ borderRadius: 16 }}>
+        <Table dataSource={sessions} columns={columns} rowKey="sessionId" pagination={false} style={{ background: 'transparent' }} />
+      </Card>
+    </Space>
   );
 }
