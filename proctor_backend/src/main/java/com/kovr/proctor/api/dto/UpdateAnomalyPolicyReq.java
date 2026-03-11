@@ -4,6 +4,7 @@ public record UpdateAnomalyPolicyReq(
         Double warningThreshold,
         Double severeThreshold,
         Long sampleIntervalMs,
-        Long identityVerifyIntervalSec
+        Long identityVerifyIntervalSec,
+        String evidenceMediaType
 ) {
 }

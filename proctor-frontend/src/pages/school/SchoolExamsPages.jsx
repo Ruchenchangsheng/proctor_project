@@ -84,6 +84,7 @@ export default function SchoolExamsPages() {
         severeThreshold: Number(values.severeThreshold),
         sampleIntervalMs: Number(values.sampleIntervalMs),
         identityVerifyIntervalSec: Number(values.identityVerifyIntervalSec),
+        evidenceMediaType: values.evidenceMediaType || "VIDEO",
       };
       const r = await api.put(`/school/${school.id}/anomaly-policy`, payload);
       if (r.data?.ok && r.data?.policy) {
@@ -143,9 +144,18 @@ export default function SchoolExamsPages() {
           <Form.Item name="severeThreshold" label="严重违规阈值"><InputNumber min={0} max={1} step={0.01} style={{ width: 100 }} /></Form.Item>
           <Form.Item name="sampleIntervalMs" label="采样间隔(ms)"><InputNumber min={200} max={10000} step={100} style={{ width: 120 }} /></Form.Item>
           <Form.Item name="identityVerifyIntervalSec" label="身份核验间隔(秒)"><InputNumber min={2} max={120} step={1} style={{ width: 100 }} /></Form.Item>
+          <Form.Item name="evidenceMediaType" label="证据格式">
+            <Select
+              style={{ width: 130 }}
+              options={[
+                { value: "VIDEO", label: "视频" },
+                { value: "GIF", label: "动图(GIF)" },
+              ]}
+            />
+          </Form.Item>
           <Form.Item><Button type="primary" htmlType="submit" loading={policySaving} icon={<SaveOutlined />}>保存阈值</Button></Form.Item>
         </Form>
-        <Text type="secondary" style={{ display: 'block', marginTop: 12, fontSize: 13 }}>💡 说明：模型输出的违规概率 ≥ 严重阈值判定为严重违规，否则为普通违规。</Text>
+        <Text type="secondary" style={{ display: 'block', marginTop: 12, fontSize: 13 }}>💡 说明：可配置证据格式（视频/动图）。若选择视频，将按原始采样节奏编码，降低快进体感。</Text>
       </Card>
       
       <Card className="glass-effect" bordered={false} style={{ marginBottom: 24, borderRadius: 12 }}>
