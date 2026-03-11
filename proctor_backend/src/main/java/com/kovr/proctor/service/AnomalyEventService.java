@@ -86,6 +86,10 @@ public class AnomalyEventService {
         m.put("studentId", studentId);
         m.put("label", label);
         m.put("type", type);
+        m.put("severity", severity);
+        m.put("probability", probability);
+        m.put("score", probability);
+        m.put("ts_ms", end);
         m.put("enterTs", start);
         m.put("exitTs", end);
         m.put("durationMs", dur);

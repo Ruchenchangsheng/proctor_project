@@ -208,7 +208,7 @@ export default function SchoolExamsPages() {
           dataSource={examList}
           rowKey="id"
           loading={listLoading}
-          pagination={{ pageSize: 5 }}
+          pagination={{ pageSize: 20 }}
           style={{ background: 'transparent' }} 
         />
       </Card>
