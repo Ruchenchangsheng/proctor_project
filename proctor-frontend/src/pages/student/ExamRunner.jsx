@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { useParams } from "react-router-dom";
+import { useNavigate, useParams } from "react-router-dom";
 import { api } from "../../apiClient";
 import { createStomp } from "../../stomp";
 import { useAuthStore } from "../../store/auth";
@@ -11,6 +11,7 @@ const { Title, Text } = Typography;
 export default function ExamRunner() {
   const { sessionId } = useParams();
   const me = useAuthStore((s) => s.me);
+  const navigate = useNavigate();
 
   const videoRef = useRef(null);
 
@@ -107,7 +108,23 @@ export default function ExamRunner() {
 
       const fd = new FormData();
       fd.append("photo", blob, "frame.jpg");
-      await api.post(apiPath, fd);
+      const resp = await api.post(apiPath, fd);
+      if (resp?.data?.ended) {
+        setMsg(resp.data?.msg || "考试已结束，系统已自动交卷");
+        if (uploadTimerRef.current) {
+          window.clearInterval(uploadTimerRef.current);
+          uploadTimerRef.current = null;
+        }
+        const examRoomSignalId = roomSignalIdRef.current;
+        if (examRoomSignalId && studentSenderId) {
+          publishSignal(examRoomSignalId, {
+            type: "student-leave",
+            senderRole: "STUDENT",
+            senderId: studentSenderId,
+          });
+        }
+        window.setTimeout(() => navigate('/student/home'), 1200);
+      }
     } catch {
       // 忽略上传失败，下一轮重试
     } finally {
@@ -242,7 +259,7 @@ export default function ExamRunner() {
         localStreamRef.current = null;
       }
     };
-  }, [sessionId, studentSenderId]);
+  }, [sessionId, studentSenderId, navigate]);
 
   return (
     <div style={{ width: "100%", height: "calc(94vh - 24px)", margin: "0 auto", display: "grid", gap: 16, overflow: "hidden" }}>

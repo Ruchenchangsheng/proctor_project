@@ -5,17 +5,21 @@ import "./index.css";
 
 // ===== 学校管理员端 =====
 import SchoolLayout from "./pages/school/layouts/SchoolLayout.jsx";
-import SchoolDepartmentsPages from "./pages/school/schoolDepartmentsPages.jsx";
-import SchoolMajorsPages from "./pages/school/schoolMajorsPages.jsx";
-import SchoolStudentsPages from "./pages/school/schoolStudentsPages.jsx";
-import SchoolTeachersPages from "./pages/school/schoolTeachersPages.jsx";
+import SchoolDepartmentsPages from "./pages/school/SchoolDepartmentsPages.jsx";
+import SchoolMajorsPages from "./pages/school/SchoolMajorsPages.jsx";
+import SchoolStudentsPages from "./pages/school/SchoolStudentsPages.jsx";
+import SchoolTeachersPages from "./pages/school/SchoolTeachersPages.jsx";
 import SchoolExamsPages from "./pages/school/SchoolExamsPages.jsx";
 
 import Login from "./pages/Login.jsx";
 import Admin from "./pages/Admin.jsx";
-import Teacher from "./pages/Teacher.jsx";
 import Student from "./pages/Student.jsx";
-import TeacherMonitor from "./pages/TeacherMonitor.jsx";
+import TeacherMonitor from "./pages/teacher/TeacherMonitor.jsx";
+import TeacherLayout from "./pages/teacher/TeacherLayout.jsx";
+import TeacherTasksPage from "./pages/teacher/TeacherTasksPage.jsx";
+import TeacherEvidenceExamsPage from "./pages/teacher/TeacherEvidenceExamsPage.jsx";
+import TeacherEvidenceStudentsPage from "./pages/teacher/TeacherEvidenceStudentsPage.jsx";
+import TeacherEvidenceStudentDetailPage from "./pages/teacher/TeacherEvidenceStudentDetailPage.jsx";
 
 // ===== 学生端 =====
 import StudentLayout from "./pages/student/layouts/StudentLayout.jsx";
@@ -69,7 +73,16 @@ export default function App() {
         <Route path="school_exams_pages" element={<SchoolExamsPages />} />
       </Route>
 
-      <Route path="/teacher" element={<Guard allow={["TEACHER"]}><Teacher/></Guard>} />
+      <Route path="/teacher" element={<Guard allow={["TEACHER"]}><TeacherLayout /></Guard>}>
+        <Route index element={<Navigate to="tasks/running" replace />} />
+        <Route path="tasks/all" element={<TeacherTasksPage phase="ALL" />} />
+        <Route path="tasks/pending" element={<TeacherTasksPage phase="PENDING" />} />
+        <Route path="tasks/running" element={<TeacherTasksPage phase="RUNNING" />} />
+        <Route path="tasks/completed" element={<TeacherTasksPage phase="COMPLETED" />} />
+        <Route path="evidence/exams" element={<TeacherEvidenceExamsPage />} />
+        <Route path="evidence/exams/:examRoomId/students" element={<TeacherEvidenceStudentsPage />} />
+        <Route path="evidence/exams/:examRoomId/students/:studentId" element={<TeacherEvidenceStudentDetailPage />} />
+      </Route>
       <Route path="/teacher/monitor/:examRoomId" element={<Guard allow={["TEACHER"]}><TeacherMonitor/></Guard>} />
 
       {/* 学生端：无顶部导航的三页流转 */}

@@ -11,6 +11,11 @@ export default function Login() {
   const setToken = useAuthStore((s) => s.setToken);
   const bootstrapAfterLogin = useAuthStore((s) => s.bootstrapAfterLogin);
 
+    function sanitize(value, removeAllWhitespace = false) {
+    const raw = String(value ?? "");
+    return removeAllWhitespace ? raw.replace(/\s+/g, "") : raw.trim();
+  }
+
   async function onFinish(values) {
     setErr("");
     setLoading(true);
@@ -18,7 +23,10 @@ export default function Login() {
       const r = await fetch("/api/auth/login", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email: values.email, password: values.password })
+        body: JSON.stringify({
+          email: sanitize(values.email, true),
+          password: sanitize(values.password, true),
+        })
       });
       const data = await r.json();
       if (!r.ok) throw new Error(data?.message || "登录失败");

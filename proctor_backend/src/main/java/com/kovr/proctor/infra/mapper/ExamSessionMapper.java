@@ -5,6 +5,7 @@ import com.kovr.proctor.domain.entity.ExamSessionEntity;
 import org.apache.ibatis.annotations.Mapper;
 import org.apache.ibatis.annotations.Param;
 import org.apache.ibatis.annotations.Select;
+import org.apache.ibatis.annotations.Update;
 
 import java.util.List;
 import java.util.Map;
@@ -13,10 +14,7 @@ import java.util.Map;
 public interface ExamSessionMapper extends BaseMapper<ExamSessionEntity> {
 
     @Select({
-            "select s.id as sessionId, s.exam_id as examId, s.exam_room_id as examRoomId,",
-            "       e.name as examName, er.room_id as roomId,",
-            "       date_format(e.start_at, '%Y-%m-%d %H:%i:%s') as startAt,",
-            "       date_format(e.end_at, '%Y-%m-%d %H:%i:%s') as endAt",
+            "select s.id as sessionId, s.exam_id as examId, s.exam_room_id as examRoomId, e.name as examName, er.room_id as roomId, date_format(e.start_at, '%Y-%m-%d %H:%i:%s') as startAt, date_format(e.end_at, '%Y-%m-%d %H:%i:%s') as endAt",
             "from exam_sessions s",
             "join exams e on e.id = s.exam_id",
             "join exam_rooms er on er.id = s.exam_room_id",
@@ -33,10 +31,7 @@ public interface ExamSessionMapper extends BaseMapper<ExamSessionEntity> {
     Map<String, Object> selectCurrentSessionByStudentId(@Param("studentId") Long studentId);
 
     @Select({
-            "select s.id as sessionId, s.status as sessionStatus, s.exam_room_id as examRoomId,",
-            "       e.id as examId, e.name as examName, er.room_id as roomId,",
-            "       date_format(e.start_at, '%Y-%m-%d %H:%i:%s') as startAt,",
-            "       date_format(e.end_at, '%Y-%m-%d %H:%i:%s') as endAt,",
+            "select s.id as sessionId, s.status as sessionStatus, s.exam_room_id as examRoomId, e.id as examId, e.name as examName, er.room_id as roomId, date_format(e.start_at, '%Y-%m-%d %H:%i:%s') as startAt, date_format(e.end_at, '%Y-%m-%d %H:%i:%s') as endAt,",
             "       case",
             "         when e.end_at is not null and e.end_at < now() then 'COMPLETED'",
             "         when e.start_at is not null and e.start_at <= now() and (e.end_at is null or e.end_at >= now()) then 'RUNNING'",
@@ -51,10 +46,7 @@ public interface ExamSessionMapper extends BaseMapper<ExamSessionEntity> {
     List<Map<String, Object>> selectSessionsByStudentId(@Param("studentId") Long studentId);
 
     @Select({
-            "select s.id as sessionId, s.exam_id as examId, s.exam_room_id as examRoomId,",
-            "       e.name as examName, er.room_id as roomId,",
-            "       date_format(e.start_at, '%Y-%m-%d %H:%i:%s') as startAt,",
-            "       date_format(e.end_at, '%Y-%m-%d %H:%i:%s') as endAt",
+            "select s.id as sessionId, s.exam_id as examId, s.exam_room_id as examRoomId, e.name as examName, er.room_id as roomId, date_format(e.start_at, '%Y-%m-%d %H:%i:%s') as startAt, date_format(e.end_at, '%Y-%m-%d %H:%i:%s') as endAt",
             "from exam_sessions s",
             "join exams e on e.id = s.exam_id",
             "join exam_rooms er on er.id = s.exam_room_id",
@@ -64,4 +56,12 @@ public interface ExamSessionMapper extends BaseMapper<ExamSessionEntity> {
     Map<String, Object> selectSessionRoomByStudentAndSessionId(
             @Param("studentId") Long studentId,
             @Param("sessionId") Long sessionId);
+
+    @Update({
+            "update exam_sessions",
+            "set status = 'FINISHED', finished_at = now()",
+            "where id = #{sessionId} and (status is null or status <> 'FINISHED')"
+    })
+    int finishSessionById(@Param("sessionId") Long sessionId);
+
 }
