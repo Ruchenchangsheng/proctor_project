@@ -10,7 +10,7 @@ export default function SchoolExamsPages() {
   const { school } = useOutletContext();
   const [departments, setDepartments] = useState([]);
   const [majors, setMajors] = useState([]);
-  
+
   const [loading, setLoading] = useState(false);
   const [listLoading, setListLoading] = useState(false);
   const [result, setResult] = useState(null);
@@ -37,7 +37,7 @@ export default function SchoolExamsPages() {
         }
         await loadExams();
         await loadAnomalyPolicy();
-        
+
         examForm.setFieldsValue({
           invigilatorScreenWidth: 1920,
           invigilatorScreenHeight: 1080,
@@ -62,7 +62,7 @@ export default function SchoolExamsPages() {
     try {
       const r = await api.get(`/school/${school.id}/exams`);
       setExamList(r.data || []);
-    } catch (err) { message.error("加载考试列表失败"); } 
+    } catch (err) { message.error("加载考试列表失败"); }
     finally { setListLoading(false); }
   }
 
@@ -84,13 +84,14 @@ export default function SchoolExamsPages() {
         severeThreshold: Number(values.severeThreshold),
         sampleIntervalMs: Number(values.sampleIntervalMs),
         identityVerifyIntervalSec: Number(values.identityVerifyIntervalSec),
+        evidenceMediaType: values.evidenceMediaType || "VIDEO",
       };
       const r = await api.put(`/school/${school.id}/anomaly-policy`, payload);
       if (r.data?.ok && r.data?.policy) {
         policyForm.setFieldsValue(r.data.policy);
         message.success("违规分级阈值已更新");
       }
-    } catch (err) { message.error(err.message || "保存失败"); } 
+    } catch (err) { message.error(err.message || "保存失败"); }
     finally { setPolicySaving(false); }
   }
 
@@ -102,7 +103,7 @@ export default function SchoolExamsPages() {
       const r = await api.get(`/school/${school.id}/exams/${examId}/rooms`);
       setRooms(r.data || []);
       setSelectedExamId(String(examId)); // 设置 ID，触发弹窗显示
-    } catch (err) { message.error(err.message); } 
+    } catch (err) { message.error(err.message); }
     finally { setListLoading(false); }
   }
 
@@ -128,27 +129,38 @@ export default function SchoolExamsPages() {
       const r = await api.post(`/school/${school.id}/exams`, payload);
       setResult(r.data);
       message.success("考试创建成功，已完成自动分房");
-      examForm.resetFields(['name', 'startAt', 'endAt']); 
+      examForm.resetFields(['name', 'startAt', 'endAt']);
       await loadExams();
-    } catch (err) { message.error(err.message || "创建考试失败"); } 
+    } catch (err) { message.error(err.message || "创建考试失败"); }
     finally { setLoading(false); }
   }
 
   return (
     <div style={{ maxWidth: 1400, margin: "0 auto" }}>
-      <Card className="glass-effect" bordered={false} style={{ marginBottom: 24, borderRadius: 12 }}>
+      <Card className="glass-effect" variant={false} style={{ marginBottom: 24, borderRadius: 12 }}>
         <Title level={4} style={{ marginTop: 0, marginBottom: 20 }}>异常检测分级阈值</Title>
         <Form form={policyForm} layout="inline" onFinish={saveAnomalyPolicy}>
           <Form.Item name="warningThreshold" label="普通违规阈值"><InputNumber min={0} max={1} step={0.01} style={{ width: 100 }} /></Form.Item>
           <Form.Item name="severeThreshold" label="严重违规阈值"><InputNumber min={0} max={1} step={0.01} style={{ width: 100 }} /></Form.Item>
           <Form.Item name="sampleIntervalMs" label="采样间隔(ms)"><InputNumber min={200} max={10000} step={100} style={{ width: 120 }} /></Form.Item>
           <Form.Item name="identityVerifyIntervalSec" label="身份核验间隔(秒)"><InputNumber min={2} max={120} step={1} style={{ width: 100 }} /></Form.Item>
+          <Form.Item name="evidenceMediaType" label="证据格式">
+            <Select
+              style={{ width: 130 }}
+              options={[
+                { value: "VIDEO", label: "视频" },
+                { value: "GIF", label: "动图(GIF)" },
+              ]}
+            />
+          </Form.Item>
           <Form.Item><Button type="primary" htmlType="submit" loading={policySaving} icon={<SaveOutlined />}>保存阈值</Button></Form.Item>
+
         </Form>
         <Text type="secondary" style={{ display: 'block', marginTop: 12, fontSize: 13 }}>💡 说明：模型输出的违规概率 ≥ 严重阈值判定为严重违规，否则为普通违规。</Text>
+        <Text type="secondary" style={{ display: 'block', marginTop: 12, fontSize: 13 }}>💡 说明：可配置证据格式（视频/动图）。若选择视频，将按原始采样节奏编码，降低快进体感。</Text>
       </Card>
-      
-      <Card className="glass-effect" bordered={false} style={{ marginBottom: 24, borderRadius: 12 }}>
+
+      <Card className="glass-effect" variant={false} style={{ marginBottom: 24, borderRadius: 12 }}>
         <Title level={4} style={{ marginTop: 0, marginBottom: 20 }}>创建考试并自动分房</Title>
         <Form form={examForm} layout="vertical" onFinish={onSubmitExam}>
           <Space align="start" size="large" wrap>
@@ -174,7 +186,7 @@ export default function SchoolExamsPages() {
       </Card>
 
       {result && (
-        <Card className="glass-effect" bordered={false} style={{ marginBottom: 24, borderRadius: 12, border: '1px solid #52c41a' }}>
+        <Card className="glass-effect" variant={false} style={{ marginBottom: 24, borderRadius: 12, border: '1px solid #52c41a' }}>
           <Title level={4} style={{ color: '#52c41a', marginTop: 0 }}>✅ 自动分房结果</Title>
           <Space split={<Divider type="vertical" />} style={{ marginBottom: 16 }}>
             <Text>名称：<Text strong>{result.examName}</Text></Text>
@@ -184,12 +196,12 @@ export default function SchoolExamsPages() {
         </Card>
       )}
 
-      <Card className="glass-effect" bordered={false} style={{ borderRadius: 12 }}>
+      <Card className="glass-effect" variant={false} style={{ borderRadius: 12 }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
           <Title level={4} style={{ margin: 0 }}>考试与考场总览</Title>
           <Button onClick={loadExams} loading={listLoading} icon={<ReloadOutlined />}>刷新列表</Button>
         </div>
-        <Table 
+        <Table
           columns={[
             { title: '考试ID', dataIndex: 'id', width: 80 },
             { title: '考试名称', dataIndex: 'name' },
@@ -197,8 +209,8 @@ export default function SchoolExamsPages() {
             { title: '专业', dataIndex: 'majorName', render: t => t || "-" },
             { title: '开始时间', dataIndex: 'startAt', render: t => t || "-" },
             { title: '结束时间', dataIndex: 'endAt', render: t => t || "-" },
-            { 
-              title: '操作', 
+            {
+              title: '操作',
               key: 'action',
               render: (_, record) => (
                 <Button type="link" onClick={() => viewRooms(record.id)} disabled={listLoading}>查看考场分配</Button>
@@ -209,7 +221,7 @@ export default function SchoolExamsPages() {
           rowKey="id"
           loading={listLoading}
           pagination={{ pageSize: 20 }}
-          style={{ background: 'transparent' }} 
+          style={{ background: 'transparent' }}
         />
       </Card>
 
@@ -223,14 +235,16 @@ export default function SchoolExamsPages() {
           <Button key="close" type="primary" onClick={() => setSelectedExamId("")}>关闭</Button>
         ]}
 
-        style={{content:{
-          backgroundColor: 'rgba(255, 255, 255)', // 核心透明度修改位置（0.45 可以自行调高或调低）
-          backdropFilter:'none',
-          border: '1px solid rgba(255, 255, 255, 0.9)', // 高光边框
-          WebkitBackdropFilter: 'none',
-        }}}
+        style={{
+          content: {
+            backgroundColor: 'rgba(255, 255, 255)', // 核心透明度修改位置（0.45 可以自行调高或调低）
+            backdropFilter: 'none',
+            border: '1px solid rgba(255, 255, 255, 0.9)', // 高光边框
+            WebkitBackdropFilter: 'none',
+          }
+        }}
       >
-        <Table 
+        <Table
           size="middle"
           style={{ backgroundColor: 'white', borderRadius: '8px' }}
           columns={[

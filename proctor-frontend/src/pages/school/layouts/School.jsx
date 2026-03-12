@@ -10,22 +10,22 @@ export default function School() {
   const [departments, setDepts] = useState([]);
   const [majors, setMajors] = useState([]);
 
-  useEffect(() => { 
+  useEffect(() => {
     (async () => {
       try {
-        const s = await api.get("/school/my"); 
+        const s = await api.get("/school/my");
         setSchool(s.data);
-        const d = await api.get(`/school/${s.data.id}/departments`); 
+        const d = await api.get(`/school/${s.data.id}/departments`);
         setDepts(d.data || []);
       } catch (e) { message.error("加载数据失败: " + e.message); }
-    })(); 
+    })();
   }, []);
 
   async function addDept(values) {
     const name = values.dept.trim(); if (!name) return;
     try {
       await api.post(`/school/${school.id}/departments`, { name });
-      const d = await api.get(`/school/${school.id}/departments`); 
+      const d = await api.get(`/school/${school.id}/departments`);
       setDepts(d.data || []);
       message.success("学院已添加");
     } catch (e) { message.error(e.message); }
@@ -36,7 +36,7 @@ export default function School() {
     const name = values.major.trim();
     try {
       await api.post(`/school/${school.id}/majors`, { departmentId, name });
-      const m = await api.get(`/school/${school.id}/majors?departmentId=${departmentId}`); 
+      const m = await api.get(`/school/${school.id}/majors?departmentId=${departmentId}`);
       setMajors(m.data || []);
       message.success("专业已添加");
     } catch (e) { message.error(e.message); }
@@ -44,9 +44,9 @@ export default function School() {
 
   async function addTeacher(values) {
     const payload = { email: values.t_email, name: values.t_name, departmentId: Number(values.t_departmentId) };
-    try { 
-      await api.post(`/school/${school.id}/teachers`, payload); 
-      message.success("已创建老师账号并通过邮件发送密码"); 
+    try {
+      await api.post(`/school/${school.id}/teachers`, payload);
+      message.success("已创建老师账号并通过邮件发送密码");
     } catch (e) { message.error(e.message); }
   }
 
@@ -58,7 +58,7 @@ export default function School() {
     fd.append("name", values.name);
     fd.append("email", values.email);
     fd.append("departmentId", values.departmentId);
-    if(values.majorId) fd.append("majorId", values.majorId);
+    if (values.majorId) fd.append("majorId", values.majorId);
     fd.append("photo", values.photo.fileList[0].originFileObj);
 
     try {
@@ -78,7 +78,7 @@ export default function School() {
       <Row gutter={[24, 24]}>
         {/* 左侧两列：添加学院和添加专业 */}
         <Col xs={24} md={12}>
-          <Card className="glass-effect" title="1) 添加学院" bordered={false} style={{ borderRadius: 12, height: '100%' }}>
+          <Card className="glass-effect" title="1) 添加学院" variant={false} style={{ borderRadius: 12, height: '100%' }}>
             <Form layout="inline" onFinish={addDept}>
               <Form.Item name="dept" rules={[{ required: true }]}>
                 <Input placeholder="学院名称" />
@@ -91,19 +91,19 @@ export default function School() {
         </Col>
 
         <Col xs={24} md={12}>
-          <Card className="glass-effect" title="2) 添加专业" bordered={false} style={{ borderRadius: 12, height: '100%' }}>
+          <Card className="glass-effect" title="2) 添加专业" variant={false} style={{ borderRadius: 12, height: '100%' }}>
             <Form layout="inline" onFinish={addMajor}>
               <Form.Item name="departmentId" rules={[{ required: true }]}>
                 <Select placeholder="选择学院" options={deptOptions} style={{ width: 150 }} />
               </Form.Item>
               <Form.Item name="major" rules={[{ required: true }]}>
-                <Input placeholder="专业名称" style={{ width: 150 }}/>
+                <Input placeholder="专业名称" style={{ width: 150 }} />
               </Form.Item>
               <Form.Item>
                 <Button type="primary" htmlType="submit" icon={<PlusOutlined />}>添加专业</Button>
               </Form.Item>
             </Form>
-            
+
             {majors.length > 0 && (
               <List
                 size="small"
@@ -119,7 +119,7 @@ export default function School() {
 
         {/* 右侧两列：添加老师和添加学生 */}
         <Col xs={24} md={12}>
-          <Card className="glass-effect" title="3) 添加监考老师" bordered={false} style={{ borderRadius: 12, height: '100%' }}>
+          <Card className="glass-effect" title="3) 添加监考老师" variant={false} style={{ borderRadius: 12, height: '100%' }}>
             <Form layout="vertical" onFinish={addTeacher}>
               <Form.Item name="t_name" label="姓名" rules={[{ required: true }]}>
                 <Input placeholder="输入老师姓名" />
@@ -138,7 +138,7 @@ export default function School() {
         </Col>
 
         <Col xs={24} md={12}>
-          <Card className="glass-effect" title="4) 添加考生（含证件照）" bordered={false} style={{ borderRadius: 12, height: '100%' }}>
+          <Card className="glass-effect" title="4) 添加考生（含证件照）" variant={false} style={{ borderRadius: 12, height: '100%' }}>
             <Form layout="vertical" onFinish={addStudent}>
               <Row gutter={16}>
                 <Col span={12}>

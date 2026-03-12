@@ -11,11 +11,43 @@
  Target Server Version : 80042 (8.0.42)
  File Encoding         : 65001
 
- Date: 26/02/2026 17:29:54
+ Date: 12/03/2026 02:42:18
 */
 
 SET NAMES utf8mb4;
 SET FOREIGN_KEY_CHECKS = 0;
+
+-- ----------------------------
+-- Table structure for anomaly_evidences
+-- ----------------------------
+DROP TABLE IF EXISTS `anomaly_evidences`;
+CREATE TABLE `anomaly_evidences`  (
+  `id` bigint NOT NULL AUTO_INCREMENT COMMENT '主键',
+  `evidence_id` varchar(64) CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci NOT NULL COMMENT '证据业务ID',
+  `exam_room_id` bigint NOT NULL COMMENT '考场ID',
+  `student_id` bigint NOT NULL COMMENT '学生ID',
+  `school_id` bigint NULL DEFAULT NULL COMMENT '学校ID',
+  `exam_id` bigint NULL DEFAULT NULL COMMENT '考试ID',
+  `session_id` bigint NULL DEFAULT NULL COMMENT '考试会话ID',
+  `exam_name` varchar(191) CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci NULL DEFAULT NULL COMMENT '考试名',
+  `room_id` varchar(64) CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci NULL DEFAULT NULL COMMENT '房间号',
+  `student_name` varchar(191) CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci NULL DEFAULT NULL COMMENT '学生姓名',
+  `invigilator_name` varchar(191) CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci NULL DEFAULT NULL COMMENT '监考老师',
+  `anomaly_label` varchar(64) CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci NULL DEFAULT NULL COMMENT '异常类型',
+  `severity` varchar(16) CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci NULL DEFAULT NULL COMMENT '等级',
+  `anomaly_at` datetime NULL DEFAULT NULL COMMENT '异常发生时间',
+  `anomaly_ts_ms` bigint NULL DEFAULT NULL COMMENT '异常发生时间戳',
+  `file_path` varchar(512) CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci NOT NULL COMMENT '媒体路径',
+  `media_type` varchar(64) CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci NULL DEFAULT NULL COMMENT '媒体类型',
+  `media_ext` varchar(16) CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci NULL DEFAULT NULL COMMENT '扩展名',
+  `frame_count` int NULL DEFAULT NULL COMMENT '帧数',
+  `created_at` timestamp NULL DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (`id`) USING BTREE,
+  UNIQUE INDEX `uq_evidence_id`(`evidence_id` ASC) USING BTREE,
+  INDEX `idx_evidence_room`(`exam_room_id` ASC) USING BTREE,
+  INDEX `idx_evidence_school`(`school_id` ASC) USING BTREE,
+  INDEX `idx_evidence_student`(`student_id` ASC) USING BTREE
+) ENGINE = InnoDB AUTO_INCREMENT = 1 CHARACTER SET = utf8mb4 COLLATE = utf8mb4_0900_ai_ci COMMENT = '异常证据表' ROW_FORMAT = DYNAMIC;
 
 -- ----------------------------
 -- Table structure for departments
@@ -28,7 +60,7 @@ CREATE TABLE `departments`  (
   PRIMARY KEY (`id`) USING BTREE,
   INDEX `idx_dept_school`(`school_id` ASC) USING BTREE,
   CONSTRAINT `fk_dept_school` FOREIGN KEY (`school_id`) REFERENCES `schools` (`id`) ON DELETE CASCADE ON UPDATE RESTRICT
-) ENGINE = InnoDB AUTO_INCREMENT = 5 CHARACTER SET = utf8mb4 COLLATE = utf8mb4_0900_ai_ci COMMENT = '学院表' ROW_FORMAT = Dynamic;
+) ENGINE = InnoDB AUTO_INCREMENT = 5 CHARACTER SET = utf8mb4 COLLATE = utf8mb4_0900_ai_ci COMMENT = '学院表' ROW_FORMAT = DYNAMIC;
 
 -- ----------------------------
 -- Table structure for exam_room_enrollments
@@ -44,7 +76,7 @@ CREATE TABLE `exam_room_enrollments`  (
   INDEX `fk_ere_student`(`student_id` ASC) USING BTREE,
   CONSTRAINT `fk_ere_room` FOREIGN KEY (`exam_room_id`) REFERENCES `exam_rooms` (`id`) ON DELETE CASCADE ON UPDATE RESTRICT,
   CONSTRAINT `fk_ere_student` FOREIGN KEY (`student_id`) REFERENCES `users` (`id`) ON DELETE CASCADE ON UPDATE RESTRICT
-) ENGINE = InnoDB CHARACTER SET = utf8mb4 COLLATE = utf8mb4_0900_ai_ci COMMENT = '房间-学生分配' ROW_FORMAT = Dynamic;
+) ENGINE = InnoDB AUTO_INCREMENT = 17 CHARACTER SET = utf8mb4 COLLATE = utf8mb4_0900_ai_ci COMMENT = '房间-学生分配' ROW_FORMAT = DYNAMIC;
 
 -- ----------------------------
 -- Table structure for exam_rooms
@@ -62,7 +94,7 @@ CREATE TABLE `exam_rooms`  (
   INDEX `fk_er_teacher`(`invigilator_id` ASC) USING BTREE,
   CONSTRAINT `fk_er_exam` FOREIGN KEY (`exam_id`) REFERENCES `exams` (`id`) ON DELETE CASCADE ON UPDATE RESTRICT,
   CONSTRAINT `fk_er_teacher` FOREIGN KEY (`invigilator_id`) REFERENCES `users` (`id`) ON DELETE CASCADE ON UPDATE RESTRICT
-) ENGINE = InnoDB CHARACTER SET = utf8mb4 COLLATE = utf8mb4_0900_ai_ci COMMENT = '考试-房间' ROW_FORMAT = Dynamic;
+) ENGINE = InnoDB AUTO_INCREMENT = 5 CHARACTER SET = utf8mb4 COLLATE = utf8mb4_0900_ai_ci COMMENT = '考试-房间' ROW_FORMAT = DYNAMIC;
 
 -- ----------------------------
 -- Table structure for exam_sessions
@@ -92,7 +124,7 @@ CREATE TABLE `exam_sessions`  (
   CONSTRAINT `fk_ses_inv` FOREIGN KEY (`invigilator_id`) REFERENCES `users` (`id`) ON DELETE SET NULL ON UPDATE RESTRICT,
   CONSTRAINT `fk_ses_room` FOREIGN KEY (`exam_room_id`) REFERENCES `exam_rooms` (`id`) ON DELETE SET NULL ON UPDATE RESTRICT,
   CONSTRAINT `fk_ses_student` FOREIGN KEY (`student_id`) REFERENCES `users` (`id`) ON DELETE CASCADE ON UPDATE RESTRICT
-) ENGINE = InnoDB CHARACTER SET = utf8mb4 COLLATE = utf8mb4_0900_ai_ci COMMENT = '考试会话' ROW_FORMAT = Dynamic;
+) ENGINE = InnoDB AUTO_INCREMENT = 17 CHARACTER SET = utf8mb4 COLLATE = utf8mb4_0900_ai_ci COMMENT = '考试会话' ROW_FORMAT = DYNAMIC;
 
 -- ----------------------------
 -- Table structure for exam_violations
@@ -116,7 +148,7 @@ CREATE TABLE `exam_violations`  (
   CONSTRAINT `fk_vio_exam` FOREIGN KEY (`exam_id`) REFERENCES `exams` (`id`) ON DELETE CASCADE ON UPDATE RESTRICT,
   CONSTRAINT `fk_vio_session` FOREIGN KEY (`session_id`) REFERENCES `exam_sessions` (`id`) ON DELETE CASCADE ON UPDATE RESTRICT,
   CONSTRAINT `fk_vio_student` FOREIGN KEY (`student_id`) REFERENCES `users` (`id`) ON DELETE CASCADE ON UPDATE RESTRICT
-) ENGINE = InnoDB CHARACTER SET = utf8mb4 COLLATE = utf8mb4_0900_ai_ci COMMENT = '违规事件表' ROW_FORMAT = Dynamic;
+) ENGINE = InnoDB CHARACTER SET = utf8mb4 COLLATE = utf8mb4_0900_ai_ci COMMENT = '违规事件表' ROW_FORMAT = DYNAMIC;
 
 -- ----------------------------
 -- Table structure for exams
@@ -138,7 +170,7 @@ CREATE TABLE `exams`  (
   CONSTRAINT `fk_exam_dept` FOREIGN KEY (`department_id`) REFERENCES `departments` (`id`) ON DELETE SET NULL ON UPDATE RESTRICT,
   CONSTRAINT `fk_exam_major` FOREIGN KEY (`major_id`) REFERENCES `majors` (`id`) ON DELETE SET NULL ON UPDATE RESTRICT,
   CONSTRAINT `fk_exam_school` FOREIGN KEY (`school_id`) REFERENCES `schools` (`id`) ON DELETE CASCADE ON UPDATE RESTRICT
-) ENGINE = InnoDB CHARACTER SET = utf8mb4 COLLATE = utf8mb4_0900_ai_ci COMMENT = '考试表' ROW_FORMAT = Dynamic;
+) ENGINE = InnoDB AUTO_INCREMENT = 5 CHARACTER SET = utf8mb4 COLLATE = utf8mb4_0900_ai_ci COMMENT = '考试表' ROW_FORMAT = DYNAMIC;
 
 -- ----------------------------
 -- Table structure for majors
@@ -151,7 +183,7 @@ CREATE TABLE `majors`  (
   PRIMARY KEY (`id`) USING BTREE,
   INDEX `idx_major_dept`(`department_id` ASC) USING BTREE,
   CONSTRAINT `fk_major_dept` FOREIGN KEY (`department_id`) REFERENCES `departments` (`id`) ON DELETE CASCADE ON UPDATE RESTRICT
-) ENGINE = InnoDB AUTO_INCREMENT = 7 CHARACTER SET = utf8mb4 COLLATE = utf8mb4_0900_ai_ci COMMENT = '专业表' ROW_FORMAT = Dynamic;
+) ENGINE = InnoDB AUTO_INCREMENT = 7 CHARACTER SET = utf8mb4 COLLATE = utf8mb4_0900_ai_ci COMMENT = '专业表' ROW_FORMAT = DYNAMIC;
 
 -- ----------------------------
 -- Table structure for school_admin
@@ -165,7 +197,7 @@ CREATE TABLE `school_admin`  (
   INDEX `idx_sap_school`(`school_id` ASC) USING BTREE,
   CONSTRAINT `fk_sap_school` FOREIGN KEY (`school_id`) REFERENCES `schools` (`id`) ON DELETE RESTRICT ON UPDATE RESTRICT,
   CONSTRAINT `fk_sap_user` FOREIGN KEY (`user_id`) REFERENCES `users` (`id`) ON DELETE CASCADE ON UPDATE RESTRICT
-) ENGINE = InnoDB CHARACTER SET = utf8mb4 COLLATE = utf8mb4_0900_ai_ci COMMENT = '学校管理员档案' ROW_FORMAT = Dynamic;
+) ENGINE = InnoDB CHARACTER SET = utf8mb4 COLLATE = utf8mb4_0900_ai_ci COMMENT = '学校管理员档案' ROW_FORMAT = DYNAMIC;
 
 -- ----------------------------
 -- Table structure for schools
@@ -177,7 +209,7 @@ CREATE TABLE `schools`  (
   `domain` varchar(191) CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci NULL DEFAULT NULL COMMENT '学校邮箱域名（如 @xxx.edu）',
   PRIMARY KEY (`id`) USING BTREE,
   UNIQUE INDEX `name`(`name` ASC) USING BTREE
-) ENGINE = InnoDB AUTO_INCREMENT = 34 CHARACTER SET = utf8mb4 COLLATE = utf8mb4_0900_ai_ci COMMENT = '学校表' ROW_FORMAT = Dynamic;
+) ENGINE = InnoDB AUTO_INCREMENT = 34 CHARACTER SET = utf8mb4 COLLATE = utf8mb4_0900_ai_ci COMMENT = '学校表' ROW_FORMAT = DYNAMIC;
 
 -- ----------------------------
 -- Table structure for students
@@ -205,7 +237,7 @@ CREATE TABLE `students`  (
   CONSTRAINT `fk_sp_major` FOREIGN KEY (`major_id`) REFERENCES `majors` (`id`) ON DELETE SET NULL ON UPDATE RESTRICT,
   CONSTRAINT `fk_sp_school` FOREIGN KEY (`school_id`) REFERENCES `schools` (`id`) ON DELETE RESTRICT ON UPDATE RESTRICT,
   CONSTRAINT `fk_sp_user` FOREIGN KEY (`user_id`) REFERENCES `users` (`id`) ON DELETE CASCADE ON UPDATE RESTRICT
-) ENGINE = InnoDB CHARACTER SET = utf8mb4 COLLATE = utf8mb4_0900_ai_ci COMMENT = '学生档案' ROW_FORMAT = Dynamic;
+) ENGINE = InnoDB CHARACTER SET = utf8mb4 COLLATE = utf8mb4_0900_ai_ci COMMENT = '学生档案' ROW_FORMAT = DYNAMIC;
 
 -- ----------------------------
 -- Table structure for teachers
@@ -225,7 +257,7 @@ CREATE TABLE `teachers`  (
   CONSTRAINT `fk_tp_dept` FOREIGN KEY (`department_id`) REFERENCES `departments` (`id`) ON DELETE RESTRICT ON UPDATE RESTRICT,
   CONSTRAINT `fk_tp_school` FOREIGN KEY (`school_id`) REFERENCES `schools` (`id`) ON DELETE RESTRICT ON UPDATE RESTRICT,
   CONSTRAINT `fk_tp_user` FOREIGN KEY (`user_id`) REFERENCES `users` (`id`) ON DELETE CASCADE ON UPDATE RESTRICT
-) ENGINE = InnoDB CHARACTER SET = utf8mb4 COLLATE = utf8mb4_0900_ai_ci COMMENT = '教师档案' ROW_FORMAT = Dynamic;
+) ENGINE = InnoDB CHARACTER SET = utf8mb4 COLLATE = utf8mb4_0900_ai_ci COMMENT = '教师档案' ROW_FORMAT = DYNAMIC;
 
 -- ----------------------------
 -- Table structure for users
@@ -243,12 +275,6 @@ CREATE TABLE `users`  (
   PRIMARY KEY (`id`) USING BTREE,
   UNIQUE INDEX `email`(`email` ASC) USING BTREE,
   INDEX `idx_users_email`(`email` ASC) USING BTREE
-) ENGINE = InnoDB AUTO_INCREMENT = 65 CHARACTER SET = utf8mb4 COLLATE = utf8mb4_0900_ai_ci COMMENT = '用户账号表（最小字段）' ROW_FORMAT = Dynamic;
-
--- ----------------------------
--- View structure for v_users_legacy
--- ----------------------------
-DROP VIEW IF EXISTS `v_users_legacy`;
-CREATE ALGORITHM = UNDEFINED SQL SECURITY DEFINER VIEW `v_users_legacy` AS select `u`.`id` AS `id`,`u`.`email` AS `email`,`u`.`password` AS `password`,`u`.`name` AS `name`,`u`.`role` AS `role`,`u`.`enabled` AS `enabled`,(case when (`u`.`role` = 'STUDENT') then `sp`.`school_id` when (`u`.`role` = 'TEACHER') then `tp`.`school_id` when (`u`.`role` = 'SCHOOL_ADMIN') then `sap`.`school_id` else NULL end) AS `school_id`,(case when (`u`.`role` = 'STUDENT') then `sp`.`department_id` when (`u`.`role` = 'TEACHER') then `tp`.`department_id` else NULL end) AS `department_id`,`sp`.`face_photo` AS `face_photo`,`sp`.`face_photo_mime` AS `face_photo_mime`,`sp`.`face_photo_sha256` AS `face_photo_sha256`,`sp`.`face_embedding_json` AS `face_embedding_json`,`sp`.`face_embedding_dim` AS `face_embedding_dim`,`sp`.`face_det_score` AS `face_det_score` from (((`users` `u` left join `student_profiles` `sp` on((`sp`.`user_id` = `u`.`id`))) left join `teacher_profiles` `tp` on((`tp`.`user_id` = `u`.`id`))) left join `school_admin_profiles` `sap` on((`sap`.`user_id` = `u`.`id`)));
+) ENGINE = InnoDB AUTO_INCREMENT = 70 CHARACTER SET = utf8mb4 COLLATE = utf8mb4_0900_ai_ci COMMENT = '用户账号表（最小字段）' ROW_FORMAT = DYNAMIC;
 
 SET FOREIGN_KEY_CHECKS = 1;

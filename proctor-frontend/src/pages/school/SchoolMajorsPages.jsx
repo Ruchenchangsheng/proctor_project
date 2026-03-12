@@ -54,8 +54,8 @@ export default function SchoolMajorsPages() {
       form.resetFields(['major']); // 只重置输入的专业名称，保留选中的学院
       await loadMajors(deptId);
       message.success("专业已添加");
-    } catch (e) { 
-      message.error(e.message || "添加失败"); 
+    } catch (e) {
+      message.error(e.message || "添加失败");
     }
   }
 
@@ -67,12 +67,12 @@ export default function SchoolMajorsPages() {
 
   return (
     <div style={{ maxWidth: 1000, margin: "0 auto" }}>
-      <Card className="glass-effect" bordered={false} style={{ marginBottom: 24, borderRadius: 12 }}>
+      <Card className="glass-effect" variant={false} style={{ marginBottom: 24, borderRadius: 12 }}>
         <Title level={4} style={{ marginTop: 0, marginBottom: 20 }}>添加专业</Title>
         <Form form={form} layout="inline" onFinish={onFinish}>
           <Form.Item name="departmentId" rules={[{ required: true, message: '请选择学院' }]}>
-            <Select 
-              style={{ width: 200 }} 
+            <Select
+              style={{ width: 200 }}
               placeholder="选择学院"
               onChange={(v) => { setDeptId(v); loadMajors(v); }}
               options={departments.map(d => ({ value: d.id, label: d.name }))}
@@ -87,15 +87,15 @@ export default function SchoolMajorsPages() {
         </Form>
       </Card>
 
-      <Card className="glass-effect" bordered={false} style={{ borderRadius: 12 }}>
+      <Card className="glass-effect" variant={false} style={{ borderRadius: 12 }}>
         <Title level={4} style={{ marginTop: 0, marginBottom: 20 }}>专业列表</Title>
-        <Table 
-          columns={columns} 
-          dataSource={majors} 
-          rowKey="id" 
+        <Table
+          columns={columns}
+          dataSource={majors}
+          rowKey="id"
           loading={loading}
           pagination={{ pageSize: 10 }}
-          style={{ background: 'transparent' }} 
+          style={{ background: 'transparent' }}
         />
       </Card>
     </div>

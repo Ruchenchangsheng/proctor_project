@@ -3,14 +3,12 @@ package com.kovr.proctor.api;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.kovr.proctor.common.BusinessException;
 import com.kovr.proctor.domain.entity.StudentEntity;
+import com.kovr.proctor.infra.mapper.ExamRoomMapper;
 import com.kovr.proctor.infra.mapper.ExamSessionMapper;
 import com.kovr.proctor.infra.mapper.StudentMapper;
+import com.kovr.proctor.infra.mapper.UserMapper;
 import com.kovr.proctor.security.UserDetailsImpl;
-import com.kovr.proctor.service.AnomalyClient;
-import com.kovr.proctor.service.AnomalyEventService;
-import com.kovr.proctor.service.ExamLiveStateService;
-import com.kovr.proctor.service.AnomalyPolicyService;
-import com.kovr.proctor.service.FaceClient;
+import com.kovr.proctor.service.*;
 import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.*;
@@ -33,11 +31,14 @@ import java.util.concurrent.ConcurrentHashMap;
 public class StudentController {
     private final StudentMapper sp;
     private final ExamSessionMapper examSessionMapper;
+    private final ExamRoomMapper examRoomMapper;
+    private final UserMapper userMapper;
     private final ExamLiveStateService examLiveStateService;
     private final FaceClient faceClient;
     private final AnomalyClient anomalyClient;
     private final AnomalyEventService anomalyEventService;
     private final AnomalyPolicyService anomalyPolicyService;
+    private final AnomalyEvidenceService anomalyEvidenceService;
     private final SimpMessagingTemplate messagingTemplate;
     private final ObjectMapper om = new ObjectMapper();
     private final ConcurrentHashMap<String, Long> lastAnomalyAt = new ConcurrentHashMap<>();
@@ -212,6 +213,10 @@ public class StudentController {
             if (session == null) {
                 return Map.of("hasRoom", false, "msg", "未找到该考试场次或无权限");
             }
+            String status = String.valueOf(session.getOrDefault("sessionStatus", ""));
+            if ("FINISHED".equalsIgnoreCase(status)) {
+                return Map.of("hasRoom", false, "ended", true, "msg", "该场考试已结束，无法再次进入");
+            }
             Map<String, Object> res = new LinkedHashMap<>(session);
             res.put("hasRoom", true);
             return res;
@@ -234,19 +239,30 @@ public class StudentController {
             return Map.of("ok", false, "msg", "当前未分配考试房间");
         }
         if (!isSessionRunning(session)) {
-            return Map.of("ok", false, "msg", "当前未在考试时间内，已停止异常检测");
+            autoFinishSession(session,"TIME_UP");
+            return Map.of("ok", false, "ended", true, "autoSubmitted", true, "msg", "考试已结束，系统已自动交卷并退出");
         }
         Long roomId = roomIdNumber.longValue();
         byte[] bytes = photo.getBytes();
         String mime = Optional.ofNullable(photo.getContentType()).orElse("image/jpeg");
         examLiveStateService.putFrame(roomId, u.getId(), mime, bytes);
+        anomalyEvidenceService.bufferFrame(roomId, u.getId(), mime, bytes, System.currentTimeMillis());
         long tsMs = System.currentTimeMillis();
 
         var policy = anomalyPolicyService.getPolicy(loadSchoolId(u.getId()));
         var enrichedEvents = processFrame(roomId, u.getId(), bytes, mime, tsMs, policy);
         if (!enrichedEvents.isEmpty()) {
             anomalyEventService.mergeEvents(roomId, u.getId(), enrichedEvents, policy.severeThreshold());
-            pushAnomalyUpdate(roomId, u.getId(), enrichedEvents, policy);
+
+            var evidenceList = anomalyEvidenceService.captureEvidenceBatch(
+                    roomId,
+                    u.getId(),
+                    enrichedEvents,
+                    session,
+                    loadStudentName(u.getId(), u.getName()),
+                    loadInvigilatorName(roomId),
+                    loadSchoolId(u.getId()));
+            pushAnomalyUpdate(roomId, u.getId(), enrichedEvents, evidenceList, policy);
         }
         return Map.of("ok", true, "examRoomId", roomId, "size", bytes.length, "events", enrichedEvents);
 
@@ -267,24 +283,73 @@ public class StudentController {
             return Map.of("ok", false, "msg", "当前未分配考试房间");
         }
         if (!isSessionRunning(session)) {
-            return Map.of("ok", false, "msg", "当前未在考试时间内，已停止异常检测");
+            autoFinishSession(session,"TIME_UP");
+            return Map.of("ok", false, "ended", true, "autoSubmitted", true, "msg", "考试已结束，系统已自动交卷并退出");
         }
         Long roomId = roomIdNumber.longValue();
         byte[] bytes = photo.getBytes();
         String mime = Optional.ofNullable(photo.getContentType()).orElse("image/jpeg");
         examLiveStateService.putFrame(roomId, u.getId(), mime, bytes);
+        anomalyEvidenceService.bufferFrame(roomId, u.getId(), mime, bytes, System.currentTimeMillis());
         long tsMs = System.currentTimeMillis();
 
         var policy = anomalyPolicyService.getPolicy(loadSchoolId(u.getId()));
         var enrichedEvents = processFrame(roomId, u.getId(), bytes, mime, tsMs, policy);
         if (!enrichedEvents.isEmpty()) {
             anomalyEventService.mergeEvents(roomId, u.getId(), enrichedEvents, policy.severeThreshold());
-            pushAnomalyUpdate(roomId, u.getId(), enrichedEvents, policy);
+            var evidenceList = anomalyEvidenceService.captureEvidenceBatch(
+                    roomId,
+                    u.getId(),
+                    enrichedEvents,
+                    session,
+                    loadStudentName(u.getId(), u.getName()),
+                    loadInvigilatorName(roomId),
+                    loadSchoolId(u.getId()));
+            pushAnomalyUpdate(roomId, u.getId(), enrichedEvents, evidenceList, policy);
         }
         return Map.of("ok", true, "examRoomId", roomId, "size", bytes.length, "events", enrichedEvents);
     }
 
+    @GetMapping("/exams/{sessionId}/heartbeat")
+    @PreAuthorize("hasRole('STUDENT')")
+    public Map<String, Object> heartbeat(@AuthenticationPrincipal UserDetailsImpl u,
+                                         @PathVariable Long sessionId) {
+        Map<String, Object> session = examSessionMapper.selectSessionRoomByStudentAndSessionId(u.getId(), sessionId);
+        if (session == null) {
+            return Map.of("ok", false, "ended", true, "msg", "考试场次不存在或无权限");
+        }
+        boolean running = isSessionRunning(session);
+        String status = String.valueOf(session.getOrDefault("sessionStatus", ""));
+        if (!running || "FINISHED".equalsIgnoreCase(status)) {
+            autoFinishSession(session, "TIME_UP");
+            return Map.of("ok", true, "ended", true, "msg", "考试已结束");
+        }
+        return Map.of("ok", true, "ended", false);
+    }
 
+    @PostMapping("/exams/{sessionId}/submit")
+    @PreAuthorize("hasRole('STUDENT')")
+    public Map<String, Object> submitExam(@AuthenticationPrincipal UserDetailsImpl u,
+                                          @PathVariable Long sessionId) {
+        Map<String, Object> session = examSessionMapper.selectSessionRoomByStudentAndSessionId(u.getId(), sessionId);
+        if (session == null) {
+            return Map.of("ok", false, "msg", "考试场次不存在或无权限");
+        }
+        autoFinishSession(session, "SUBMITTED");
+        return Map.of("ok", true, "ended", true, "msg", "已交卷并退出考试");
+    }
+
+    @PostMapping("/exams/{sessionId}/abnormal-exit")
+    @PreAuthorize("hasRole('STUDENT')")
+    public Map<String, Object> abnormalExit(@AuthenticationPrincipal UserDetailsImpl u,
+                                            @PathVariable Long sessionId) {
+        Map<String, Object> session = examSessionMapper.selectSessionRoomByStudentAndSessionId(u.getId(), sessionId);
+        if (session == null) {
+            return Map.of("ok", false, "msg", "考试场次不存在或无权限");
+        }
+        examSessionMapper.markAbnormalExit(sessionId);
+        return Map.of("ok", true);
+    }
 
     private List<Map<String, Object>> processFrame(Long roomId, Long studentId, byte[] bytes, String mime, long tsMs, AnomalyPolicyService.Policy policy) {
         List<Map<String, Object>> merged = new ArrayList<>();
@@ -349,6 +414,18 @@ public class StudentController {
         return item;
     }
 
+    private void autoFinishSession(Map<String, Object> session) {
+        autoFinishSession(session, "TIME_UP");
+    }
+
+    private void autoFinishSession(Map<String, Object> session, String reason) {
+        if (session == null) return;
+        Object sid = session.get("sessionId");
+        if (sid instanceof Number n) {
+            examSessionMapper.finishSessionWithReason(n.longValue(), reason == null ? "TIME_UP" : reason);
+        }
+    }
+
     private boolean isSessionRunning(Map<String, Object> session) {
         LocalDateTime now = LocalDateTime.now();
         LocalDateTime startAt = parseDateTime(session.get("startAt"));
@@ -374,6 +451,24 @@ public class StudentController {
     private Long loadSchoolId(Long studentUserId) {
         var student = sp.selectById(studentUserId);
         return student == null ? null : student.getSchoolId();
+    }
+
+    private String loadInvigilatorName(Long roomId) {
+        var room = examRoomMapper.selectById(roomId);
+        if (room == null || room.getInvigilatorId() == null) {
+            return null;
+        }
+        var user = userMapper.selectById(room.getInvigilatorId());
+        return user == null ? null : user.getName();
+    }
+
+    private String loadStudentName(Long studentUserId, String fallback) {
+        var profile = sp.selectStudentProfileByUserId(studentUserId);
+        if (profile == null) {
+            return fallback;
+        }
+        Object studentName = profile.get("name");
+        return studentName == null ? fallback : String.valueOf(studentName);
     }
 
     private List<Map<String, Object>> enrichEvents(List<Map<String, Object>> events, AnomalyPolicyService.Policy policy) {
@@ -422,7 +517,7 @@ public class StudentController {
         };
     }
 
-    private void pushAnomalyUpdate(Long roomId, Long studentId, List<Map<String, Object>> events, AnomalyPolicyService.Policy policy) {
+    private void pushAnomalyUpdate(Long roomId, Long studentId, List<Map<String, Object>> events, List<Map<String, Object>> evidences, AnomalyPolicyService.Policy policy) {
         if (events == null || events.isEmpty()) {
             return;
         }
@@ -431,6 +526,7 @@ public class StudentController {
         payload.put("roomId", roomId);
         payload.put("studentId", studentId);
         payload.put("events", events);
+        payload.put("evidences", evidences);
         payload.put("active", anomalyEventService.listActiveStates(roomId));
         payload.put("history", anomalyEventService.listRoomEvents(roomId));
         payload.put("policy", anomalyPolicyService.asMap(policy));

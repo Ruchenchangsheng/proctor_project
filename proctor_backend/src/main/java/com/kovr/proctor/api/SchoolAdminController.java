@@ -175,7 +175,7 @@ public class SchoolAdminController {
         if (admin == null || !schoolId.equals(admin.getSchoolId())) {
             return Map.of("ok", false, "msg", "无权限访问该学校配置");
         }
-        var policy = anomalyPolicyService.updatePolicy(schoolId, req.warningThreshold(), req.severeThreshold(), req.sampleIntervalMs(), req.identityVerifyIntervalSec());
+        var policy = anomalyPolicyService.updatePolicy(schoolId, req.warningThreshold(), req.severeThreshold(), req.sampleIntervalMs(), req.identityVerifyIntervalSec(),req.evidenceMediaType());
         return Map.of("ok", true, "policy", anomalyPolicyService.asMap(policy));
     }
 

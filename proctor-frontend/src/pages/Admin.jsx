@@ -58,13 +58,13 @@ export default function Admin() {
 
   return (
     <div style={{ padding: "20px 24px", maxWidth: 1200, margin: "0 auto" }}>
-      
+
       {/* 顶部：添加学校表单区域 */}
-      <Card className="glass-effect" bordered={false} style={{ marginBottom: 24, borderRadius: 12 }}>
+      <Card className="glass-effect" variant={false} style={{ marginBottom: 24, borderRadius: 12 }}>
         <Title level={4} style={{ marginTop: 0, marginBottom: 20 }}>添加学校 + 管理员</Title>
-        <Form 
-          form={form} 
-          layout="inline" 
+        <Form
+          form={form}
+          layout="inline"
           onFinish={onFinish}
           style={{ gap: '12px 0' }} // 换行时的间距
         >
@@ -89,16 +89,16 @@ export default function Admin() {
       </Card>
 
       {/* 底部：学校列表表格区域 */}
-      <Card className="glass-effect" bordered={false} style={{ borderRadius: 12 }}>
+      <Card className="glass-effect" variant={false} style={{ borderRadius: 12 }}>
         <Title level={4} style={{ marginTop: 0, marginBottom: 20 }}>学校列表（含管理员）</Title>
-        <Table 
-          columns={columns} 
-          dataSource={list} 
-          rowKey={(record, index) => record.id ?? index} 
+        <Table
+          columns={columns}
+          dataSource={list}
+          rowKey={(record, index) => record.id ?? index}
           loading={loading}
           pagination={{ pageSize: 10 }} // 自动分页
           // 让表格的底层也变成透明，配合外层的毛玻璃
-          style={{ background: 'transparent' }} 
+          style={{ background: 'transparent' }}
         />
       </Card>
 

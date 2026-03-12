@@ -23,8 +23,8 @@ export default function StudentHome() {
         try {
           const img = await api.get("/student/photo", { responseType: "blob" });
           if (img.status !== 204) {
-             const url = URL.createObjectURL(img.data);
-             setPhotoUrl(url);
+            const url = URL.createObjectURL(img.data);
+            setPhotoUrl(url);
           }
         } catch (e) { setPhotoUrl(null); }
       } catch (e) {
@@ -39,9 +39,9 @@ export default function StudentHome() {
     { title: "考试名称", dataIndex: "examName", key: "examName", render: text => <Text strong>{text}</Text> },
     { title: "开始时间", dataIndex: "startAt", key: "startAt" },
     { title: "考场", dataIndex: "roomId", key: "roomId", render: text => <Tag color="blue">{text || "-"}</Tag> },
-    { 
-      title: "状态", 
-      dataIndex: "phase", 
+    {
+      title: "状态",
+      dataIndex: "phase",
       key: "phase",
       render: phase => (
         <Tag color={phase === "RUNNING" ? "green" : phase === "COMPLETED" ? "default" : "orange"}>
@@ -49,12 +49,12 @@ export default function StudentHome() {
         </Tag>
       )
     },
-    { 
-      title: "操作", 
+    {
+      title: "操作",
       key: "action",
       render: (_, record) => (
-        <Button 
-          type="primary" 
+        <Button
+          type="primary"
           icon={<LoginOutlined />}
           disabled={record.phase === "COMPLETED"}
           onClick={() => navigate(`/student/exams/${record.sessionId}/verify`)} // 修正路径
@@ -66,8 +66,8 @@ export default function StudentHome() {
   ];
 
   return (
-    <Space direction="vertical" size="large" style={{ width: '100%' }}>
-      <Card className="glass-effect" bordered={false} style={{ borderRadius: 16 }}>
+    <Space orientation="vertical" size="large" style={{ width: '100%' }}>
+      <Card className="glass-effect" variant={false} style={{ borderRadius: 16 }}>
         <Title level={3}>🎓 考生主页</Title>
         <div style={{ display: 'flex', gap: 32, flexWrap: 'wrap' }}>
           <Image width={120} height={160} src={photoUrl} fallback="https://via.placeholder.com/120x160?text=无照片" style={{ borderRadius: 8, objectFit: 'cover' }} />
@@ -79,7 +79,7 @@ export default function StudentHome() {
           </Descriptions>
         </div>
       </Card>
-      <Card className="glass-effect" bordered={false} style={{ borderRadius: 16 }}>
+      <Card className="glass-effect" variant={false} style={{ borderRadius: 16 }}>
         <Table dataSource={sessions} columns={columns} rowKey="sessionId" pagination={false} style={{ background: 'transparent' }} />
       </Card>
     </Space>

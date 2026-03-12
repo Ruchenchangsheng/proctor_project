@@ -95,7 +95,7 @@ export default function SchoolTeachersPages() {
 
   return (
     <div style={{ maxWidth: 1200, margin: "0 auto" }}>
-      <Card className="glass-effect" bordered={false} style={{ marginBottom: 24, borderRadius: 12 }}>
+      <Card className="glass-effect" variant={false} style={{ marginBottom: 24, borderRadius: 12 }}>
         <Title level={4} style={{ marginTop: 0, marginBottom: 20 }}>添加监考老师</Title>
         <Form form={form} layout="inline" onFinish={onFinish} style={{ gap: '12px 0' }}>
           <Form.Item name="name" rules={[{ required: true, message: '必填' }]}>
@@ -116,7 +116,7 @@ export default function SchoolTeachersPages() {
         </Form>
       </Card>
 
-      <Card className="glass-effect" bordered={false} style={{ borderRadius: 12 }}>
+      <Card className="glass-effect" variant={false} style={{ borderRadius: 12 }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
           <Title level={4} style={{ margin: 0 }}>老师列表</Title>
           <Space>

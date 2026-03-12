@@ -1,9 +1,9 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Link, useLocation, useParams } from "react-router-dom";
-import { api } from "../apiClient";
-import { createStomp } from "../stomp";
-import { useAuthStore } from "../store/auth";
-import { Alert, Card, Empty, List, Space, Tag, Typography } from "antd";
+import { api } from "../../apiClient";
+import { createStomp } from "../../stomp";
+import { useAuthStore } from "../../store/auth";
+import { Alert, Button, Card, Empty, Space, Tag, Typography, message } from "antd";
 
 const { Title, Text } = Typography;
 
@@ -17,6 +17,8 @@ export default function TeacherMonitor() {
   const [msg, setMsg] = useState("");
 
   const [liveNotices, setLiveNotices] = useState([]);
+  const [evidences, setEvidences] = useState([]);
+  const [mediaLoadingId, setMediaLoadingId] = useState("");
   const teacherSenderId = me?.teacherId || me?.userId || me?.id;
 
   const stompRef = useRef(null);
@@ -32,6 +34,7 @@ export default function TeacherMonitor() {
     const hit = allStudentsRef.current.find((s) => Number(s.studentId) === Number(studentId));
     return hit?.studentName || `学生#${studentId}`;
   }
+
   function formatTs(ts) {
     let d;
     if (typeof ts === "number") d = new Date(ts);
@@ -39,7 +42,6 @@ export default function TeacherMonitor() {
     else d = new Date(ts || Date.now());
     if (Number.isNaN(d.getTime())) d = new Date();
     return d.toLocaleTimeString("zh-CN", { hour12: false });
-    // return d.toLocaleTimeString("ru-RU", { hour12: false });
   }
 
   function formatProbability(value) {
@@ -74,15 +76,6 @@ export default function TeacherMonitor() {
       2002: "左右看",
       2003: "低头",
       9000: "异常行为",
-
-      // 1001: "Лицо не обнаружено",
-      // 1002: "Не владелец документа",
-      // 1003: "Обнаружено несколько лиц",
-      // 1099: "Ошибка проверки личности",
-      // 2001: "Аномальная поза",
-      // 2002: "Взгляд влево/вправо",
-      // 2003: "Опущена голова",
-      // 9000: "Аномальное поведение",
     };
     return m[c] || "异常行为";
   }
@@ -107,20 +100,22 @@ export default function TeacherMonitor() {
   }
 
   function upsertNotices(events = [], fallbackStudentId = null) {
-    const notices = (events || []).map((evt, idx) => {
-      const code = evt.violationCode ?? mapCodeByLabel(evt.violationType || evt.label);
-      const probability = evt.probability ?? evt.score;
-      const ts = evt.ts_ms ?? evt.tsMs ?? evt.exitTs ?? evt.enterTs ?? evt.createdAt ?? evt.exitAt ?? Date.now();
-      return {
-        id: evt.id || `${Date.now()}-${idx}`,
-        studentId: evt.studentId ?? fallbackStudentId,
-        code,
-        label: violationTextByCode(code),
-        severity: evt.severity || "WARNING",
-        probability,
-        ts,
-      };
-    });
+    const notices = (events || [])
+      .filter((evt) => evt && typeof evt === "object")
+      .map((evt, idx) => {
+        const code = evt.violationCode ?? mapCodeByLabel(evt.violationType || evt.label);
+        const probability = evt.probability ?? evt.score;
+        const ts = evt.ts_ms ?? evt.tsMs ?? evt.exitTs ?? evt.enterTs ?? evt.createdAt ?? evt.exitAt ?? Date.now();
+        return {
+          id: evt.id || `${Date.now()}-${idx}`,
+          studentId: evt.studentId ?? fallbackStudentId,
+          code,
+          label: violationTextByCode(code),
+          severity: evt.severity || "WARNING",
+          probability,
+          ts,
+        };
+      });
 
     if (notices.length === 0) return;
 
@@ -128,6 +123,7 @@ export default function TeacherMonitor() {
       const merged = [...notices, ...prev];
       const dedup = new Map();
       merged.forEach((n) => {
+        if (!n || typeof n !== "object") return;
         const key = `${n.studentId || "x"}-${n.code}-${String(n.ts)}`;
         if (!dedup.has(key)) dedup.set(key, n);
       });
@@ -135,12 +131,62 @@ export default function TeacherMonitor() {
     });
   }
 
+  function upsertEvidences(items = []) {
+    if (!Array.isArray(items) || items.length === 0) return;
+    setEvidences((prev) => {
+      const merged = [...items, ...prev];
+      const dedup = new Map();
+      merged.forEach((it, idx) => {
+        if (!it || typeof it !== "object") return;
+        const key = it.evidenceId || `${it.studentId || "x"}-${it.anomalyTsMs || it.anomalyAt || idx}`;
+        if (!dedup.has(key)) dedup.set(key, it);
+      });
+      return Array.from(dedup.values())
+        .sort((a, b) => Number(b?.anomalyTsMs || 0) - Number(a?.anomalyTsMs || 0))
+        .slice(0, 50);
+    });
+  }
+
+  async function openEvidence(item, mode = "preview") {
+    const evidenceId = item?.evidenceId;
+    if (!evidenceId) return;
+    try {
+      setMediaLoadingId(evidenceId + mode);
+      const res = await api.get(`/evidence/${evidenceId}/media`, {
+        responseType: "blob",
+        params: { disposition: mode === "download" ? "attachment" : "inline" },
+      });
+      const blob = res.data;
+      const contentType = res.headers?.["content-type"] || item.mediaType || "application/octet-stream";
+      const ext = item.mediaExt || (contentType.includes("mp4") ? "mp4" : contentType.includes("webm") ? "webm" : "gif");
+      const url = URL.createObjectURL(blob);
+      if (mode === "download") {
+        const a = document.createElement("a");
+        a.href = url;
+        a.download = `${evidenceId}.${ext}`;
+        a.click();
+      } else {
+        window.open(url, "_blank", "noopener,noreferrer");
+      }
+      window.setTimeout(() => URL.revokeObjectURL(url), 30000);
+    } catch (e) {
+      message.error(e.message || "证据加载失败");
+    } finally {
+      setMediaLoadingId("");
+    }
+  }
+
   async function loadAlertsSnapshot() {
     try {
       const r = await api.get(`/teacher/rooms/${examRoomId}/alerts`);
       if (!r.data?.ok) return;
       const events = Array.isArray(r.data.events) ? r.data.events : [];
+      const evidenceItems = Array.isArray(r.data.evidences) ? r.data.evidences : [];
       upsertNotices(events);
+      upsertEvidences(evidenceItems);
+      if (r.data?.examEnded) {
+        setMsg("考试已结束，监考画面已停止更新");
+      }
     } catch {
       // 忽略轮询失败，保持实时订阅
     }
@@ -249,13 +295,18 @@ export default function TeacherMonitor() {
 
         client.onConnect = () => {
           client.subscribe(`/topic/exam-room.${examRoomId}`, async (frame) => {
-            const signal = JSON.parse(frame.body || "{}");
-            const myId = teacherSenderId;
+            let signal = {};
+            try {
+              signal = JSON.parse(frame.body || "{}");
+            } catch {
+              return;
+            }
+            const myId = normalizeId(teacherSenderId);
             const senderId = normalizeId(signal.senderId);
             const targetId = normalizeId(signal.targetId);
 
-            if (signal.senderRole === "TEACHER" && signal.senderId === myId) return;
-            if (signal.targetId && signal.targetId !== myId) return;
+            if (signal.senderRole === "TEACHER" && senderId === myId) return;
+            if (targetId && targetId !== myId) return;
 
             if (signal.type === "student-join" && signal.senderRole === "STUDENT") {
               await createOfferForStudent(Number(signal.senderId));
@@ -284,12 +335,13 @@ export default function TeacherMonitor() {
               return;
             }
 
-            if (signal.type === "anomaly-update" && Array.isArray(signal.events) && signal.events.length > 0) {
-              upsertNotices(signal.events, signal.studentId);
-              return;
-            }
-
             if (signal.type === "anomaly-update") {
+              if (Array.isArray(signal.events) && signal.events.length > 0) {
+                upsertNotices(signal.events, signal.studentId);
+              }
+              if (Array.isArray(signal.evidences) && signal.evidences.length > 0) {
+                upsertEvidences(signal.evidences);
+              }
               if (Array.isArray(signal.history) && signal.history.length > 0) {
                 upsertNotices(signal.history, signal.studentId);
               }
@@ -341,17 +393,14 @@ export default function TeacherMonitor() {
   }
 
   function severityText(severity) {
-    const v = String(severity || "WARNING").toUpperCase();
-    //  return isSevere(severity) ? "警告" : "严重";
-    return isSevere(severity) ? "Критическое" : "Предупреждение";
+    return isSevere(severity) ? "严重" : "警告";
   }
 
   return (
     <div style={{ width: "100%", height: "calc(94vh - 8px)", margin: "0 auto", display: "flex", flexDirection: "column", gap: 12, overflow: "hidden" }}>
-
       <Card className="glass-effect" variant="borderless" style={{ borderRadius: 16, flex: "0 0 auto" }}>
         <Space orientation="vertical" size={8} style={{ width: "100%" }}>
-          <Link to="/teacher">← 返回监考主页</Link>
+          <Link to="/teacher/tasks/running">← 返回监考主页</Link>
           <div>
             <Text type="secondary">考试：{location.state?.examName || "-"}｜考场：{location.state?.roomId || examRoomId}</Text>
           </div>
@@ -359,7 +408,7 @@ export default function TeacherMonitor() {
       </Card>
 
       <div style={{ display: "flex", gap: 12, minHeight: 0, flex: 1, overflow: "hidden" }}>
-        <Card className="glass-effect" variant="borderless" style={{ borderRadius: 16, width: "80%", minWidth: 0, minHeight: 0, overflow: "hidden", display: "flex", flexDirection: "column" }}>
+        <Card className="glass-effect" variant="borderless" style={{ borderRadius: 16, width: "78%", minWidth: 0, minHeight: 0, overflow: "hidden", display: "flex", flexDirection: "column" }}>
           <div style={{ display: "grid", gridTemplateColumns: monitorGridTemplate, gap: 10, overflowY: "auto", minHeight: 0, flex: 1, paddingRight: 4 }}>
             {liveStudents.map((s) => <VideoCard key={s.studentId} student={s} />)}
             {liveStudents.length === 0 && <Empty description="暂无学生进入考试实时视频" style={{ padding: "40px 0" }} />}
@@ -367,94 +416,58 @@ export default function TeacherMonitor() {
           {msg && <Alert style={{ marginTop: 12 }} type="error" showIcon message={msg} />}
         </Card>
 
-
-        {/* <Card className="glass-effect" variant="borderless" style={{ borderRadius: 16, width: "20%", minWidth: 300, minHeight: 0, display: "flex", flexDirection: "column", overflow: "hidden" }}>
+        <Card
+          className="glass-effect"
+          variant="borderless"
+          style={{ borderRadius: 16, width: "22%", minWidth: 320, minHeight: 0, overflow: "hidden" }}
+          styles={{ body: { display: "flex", flexDirection: "column", minHeight: 0, height: "100%", overflow: "hidden" } }}
+        >
           <div style={{ flex: "0 0 auto", borderBottom: "1px solid #e5e7eb", paddingBottom: 8, marginBottom: 8 }}>
             <Text>在线人数：{liveStudents.length} / {allStudents.length}</Text>
             <Title level={5} style={{ margin: 0 }}>异常状态</Title>
           </div>
-          <div style={{ minHeight: 0, flex: 1, overflowY: "auto", paddingRight: 4, display: "grid", gap: 8 }}>
-            {liveNotices.length === 0 && <Text type="secondary">等待异常检测通知...</Text>}
-            {liveNotices.map((n) => (
-              <div key={n.id} style={{ display: "block", border: "1px solid #fecaca", borderRadius: 8, padding: "8px 10px", background: "#fff1f2" }}>
-                <div><b>{studentNameById(n.studentId)}</b> · {n.label}</div>
-                <Space size={6} wrap>
-                  <Tag color={isSevere(n.severity) ? "error" : "warning"}>{severityText(n.severity)}</Tag>
-                  <Text type="secondary">概率: {formatProbability(n.probability)}</Text>
-                  <Text type="secondary">时间: {formatTs(n.ts)}</Text>
-                </Space>
-              </div>
-            ))}
-          </div>
-        </Card> */}
 
-        <Card
-          className="glass-effect"
-          variant="borderless"
-          style={{
-            borderRadius: 16,
-            width: "20%",
-            minWidth: 300,
-            minHeight: 0,
-            overflow: "hidden"
-          }}
-          styles={{
-            body: {
-              display: "flex",
-              flexDirection: "column",
-              minHeight: 0,
-              height: "100%",
-              overflow: "hidden"
-            }
-          }}
-        >
-          <div
-            style={{
-              flex: "0 0 auto",
-              borderBottom: "1px solid #e5e7eb",
-              paddingBottom: 8,
-              marginBottom: 8
-            }}
-          >
-            <Text>在线人数：{liveStudents.length} / {allStudents.length}</Text>
-            <Title level={5} style={{ margin: 0 }}>异常状态</Title>
-          </div>
+          <div style={{ flex: 1, minHeight: 0, overflowY: "auto", paddingRight: 4, display: "flex", flexDirection: "column", gap: 8 }}>
+            <Title level={5} style={{ margin: 0 }}>异常通知</Title>
+            <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+              {liveNotices.length === 0 && <Text type="secondary">等待异常检测通知...</Text>}
+              {liveNotices.map((notice) => {
+                const noticeKey = notice?.id || `${notice?.studentId || "x"}-${notice?.code || "unknown"}-${String(notice?.ts || Date.now())}`;
+                return (
+                  <div key={noticeKey} style={{ border: "1px solid #fecaca", borderRadius: 8, padding: "8px 10px", background: "#fff1f2" }}>
+                    <div><b>{studentNameById(notice.studentId)}</b> · {notice.label}</div>
+                    <Space size={6} wrap>
+                      <Tag color={isSevere(notice.severity) ? "error" : "warning"}>{severityText(notice.severity)}</Tag>
+                      <Text type="secondary">概率: {formatProbability(notice.probability)}</Text>
+                      <Text type="secondary">时间: {formatTs(notice.ts)}</Text>
+                    </Space>
+                  </div>
+                );
+              })}
+            </div>
+            {/* 
+            <Title level={5} style={{ margin: "8px 0 0" }}>异常证据</Title>
+            <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+              {evidences.length === 0 && <Text type="secondary">暂无证据</Text>}
+              {evidences.filter((ev) => ev && typeof ev === "object").map((ev, idx) => (
+                <div key={ev.evidenceId || `${ev.studentId || "x"}-${idx}`} style={{ border: "1px solid #e5e7eb", borderRadius: 8, padding: "8px 10px", background: "#fff" }}>
+                  <div style={{ fontWeight: 600 }}>{ev.studentName || studentNameById(ev.studentId)}</div>
+                  <div style={{ marginTop: 4 }}>
+                    <Tag color={isSevere(ev.severity) ? "error" : "warning"}>{severityText(ev.severity)}</Tag>
+                    <Tag>{ev.anomalyLabel || "unknown"}</Tag>
+                    <Tag>{(ev.mediaExt || "gif").toUpperCase()}</Tag>
+                  </div>
+                  <Text type="secondary">时间：{formatTs(ev.anomalyTsMs || ev.anomalyAt)}</Text>
+                  <div style={{ marginTop: 8, display: "flex", gap: 8 }}>
+                    <Button size="small" loading={mediaLoadingId === `${ev.evidenceId}preview`} onClick={() => openEvidence(ev, "preview")}>预览</Button>
+                    <Button size="small" loading={mediaLoadingId === `${ev.evidenceId}download`} onClick={() => openEvidence(ev, "download")}>下载</Button>
+                  </div>
+                </div>
+              ))}
+            </div> */}
 
-          <div
-            style={{
-              flex: 1,
-              minHeight: 0,
-              overflowY: "auto",
-              paddingRight: 4,
-              display: "grid",
-              gap: 8
-            }}
-          >
-            {liveNotices.length === 0 && <Text type="secondary">等待异常检测通知...</Text>}
-            {liveNotices.map((n) => (
-              <div
-                key={n.id}
-                style={{
-                  display: "block",
-                  border: "1px solid #fecaca",
-                  borderRadius: 8,
-                  padding: "8px 10px",
-                  background: "#fff1f2"
-                }}
-              >
-                <div><b>{studentNameById(n.studentId)}</b> · {n.label}</div>
-                <Space size={6} wrap>
-                  <Tag color={isSevere(n.severity) ? "error" : "warning"}>
-                    {severityText(n.severity)}
-                  </Tag>
-                  <Text type="secondary">概率: {formatProbability(n.probability)}</Text>
-                  <Text type="secondary">时间: {formatTs(n.ts)}</Text>
-                </Space>
-              </div>
-            ))}
           </div>
         </Card>
-
       </div>
     </div>
   );
@@ -476,6 +489,5 @@ function VideoCard({ student }) {
       </div>
       <div style={{ marginTop: 8, fontWeight: 600 }}>{student.studentName}</div>
     </Card>
-
   );
 }

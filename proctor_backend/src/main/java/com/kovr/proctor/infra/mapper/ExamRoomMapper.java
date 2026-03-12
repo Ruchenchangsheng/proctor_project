@@ -73,7 +73,7 @@ public interface ExamRoomMapper extends BaseMapper<ExamRoomEntity> {
             @Param("phase") String phase);
 
     @Select({
-            "select er.id as examRoomId, er.room_id as roomId, e.id as examId, e.name as examName",
+            "select er.id as examRoomId, er.room_id as roomId, e.id as examId, e.name as examName, e.school_id as schoolId, date_format(e.start_at, '%Y-%m-%d %H:%i:%s') as startAt, date_format(e.end_at, '%Y-%m-%d %H:%i:%s') as endAt",
             "from exam_rooms er",
             "join exams e on e.id = er.exam_id",
             "where er.id = #{examRoomId} and er.invigilator_id = #{teacherUserId}",

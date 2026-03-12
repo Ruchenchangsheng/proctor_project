@@ -7,6 +7,7 @@ import com.kovr.proctor.infra.mapper.TeacherMapper;
 import com.kovr.proctor.infra.mapper.UserMapper;
 import com.kovr.proctor.security.UserDetailsImpl;
 import com.kovr.proctor.service.AnomalyEventService;
+import com.kovr.proctor.service.AnomalyEvidenceService;
 import com.kovr.proctor.service.ExamLiveStateService;
 import com.kovr.proctor.service.AnomalyPolicyService;
 import lombok.RequiredArgsConstructor;
@@ -18,6 +19,8 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
+import java.time.LocalDateTime;
+import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.Base64;
 import java.util.LinkedHashMap;
@@ -36,6 +39,7 @@ public class TeacherController {
     private final ExamLiveStateService examLiveStateService;
     private final AnomalyEventService anomalyEventService;
     private final AnomalyPolicyService anomalyPolicyService;
+    private final AnomalyEvidenceService anomalyEvidenceService;
 
     @GetMapping("/profile")
     @PreAuthorize("hasRole('TEACHER')")
@@ -99,9 +103,21 @@ public class TeacherController {
         res.put("ok", true);
         res.put("active", anomalyEventService.listActiveStates(examRoomId));
         res.put("events", anomalyEventService.listRoomEvents(examRoomId));
+        res.put("evidences", anomalyEvidenceService.listByRoom(examRoomId));
         Long schoolId = room.get("schoolId") instanceof Number n ? n.longValue() : null;
         res.put("policy", anomalyPolicyService.asMap(anomalyPolicyService.getPolicy(schoolId)));
+        res.put("examEnded", isExamEnded(room.get("endAt")));
         return res;
+    }
+
+    private boolean isExamEnded(Object endAtValue) {
+        if (endAtValue == null) return false;
+        try {
+            LocalDateTime endAt = LocalDateTime.parse(String.valueOf(endAtValue), DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss"));
+            return LocalDateTime.now().isAfter(endAt);
+        } catch (Exception ignore) {
+            return false;
+        }
     }
 
     @GetMapping("/rooms/{examRoomId}/live")

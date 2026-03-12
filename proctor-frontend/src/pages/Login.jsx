@@ -11,6 +11,11 @@ export default function Login() {
   const setToken = useAuthStore((s) => s.setToken);
   const bootstrapAfterLogin = useAuthStore((s) => s.bootstrapAfterLogin);
 
+  function sanitize(value, removeAllWhitespace = false) {
+    const raw = String(value ?? "");
+    return removeAllWhitespace ? raw.replace(/\s+/g, "") : raw.trim();
+  }
+
   async function onFinish(values) {
     setErr("");
     setLoading(true);
@@ -18,7 +23,10 @@ export default function Login() {
       const r = await fetch("/api/auth/login", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email: values.email, password: values.password })
+        body: JSON.stringify({
+          email: sanitize(values.email, true),
+          password: sanitize(values.password, true),
+        })
       });
       const data = await r.json();
       if (!r.ok) throw new Error(data?.message || "登录失败");
@@ -32,8 +40,8 @@ export default function Login() {
       const role = me.role;
       location.replace(
         role === "ADMIN" ? "/admin" :
-        role === "SCHOOL_ADMIN" ? "/school" :
-        role === "TEACHER" ? "/teacher" : "/student"
+          role === "SCHOOL_ADMIN" ? "/school" :
+            role === "TEACHER" ? "/teacher" : "/student"
       );
     } catch (e) {
       setErr(e.message);
@@ -45,26 +53,26 @@ export default function Login() {
   return (
     <div style={{ maxWidth: 400, margin: "10vh auto", width: "100%", padding: "0 20px" }}>
       {/* 加上之前在 css 里定义的 glass-effect 类 */}
-      <Card className="glass-effect" bordered={false} style={{ borderRadius: 16, padding: "20px 10px" }}>
+      <Card className="glass-effect" variant={false} style={{ borderRadius: 16, padding: "20px 10px" }}>
         <Title level={2} style={{ textAlign: "center", marginBottom: 30, color: "#333" }}>
           系统登录
         </Title>
-        
-        {err && <Alert message={err} type="error" showIcon style={{ marginBottom: 20 }} />}
+
+        {err && <Alert title={err} type="error" showIcon style={{ marginBottom: 20 }} />}
 
         <Form name="login" onFinish={onFinish} size="large">
           <Form.Item
             name="email"
             rules={[{ required: true, message: "请输入邮箱!" }]}
           >
-            <Input prefix={<UserOutlined style={{ color: 'rgba(0,0,0,.25)' }}/>} placeholder="邮箱" />
+            <Input prefix={<UserOutlined style={{ color: 'rgba(0,0,0,.25)' }} />} placeholder="邮箱" />
           </Form.Item>
 
           <Form.Item
             name="password"
             rules={[{ required: true, message: "请输入密码!" }]}
           >
-            <Input.Password prefix={<LockOutlined style={{ color: 'rgba(0,0,0,.25)' }}/>} placeholder="密码" />
+            <Input.Password prefix={<LockOutlined style={{ color: 'rgba(0,0,0,.25)' }} />} placeholder="密码" />
           </Form.Item>
 
           <Form.Item style={{ marginTop: 30, marginBottom: 0 }}>

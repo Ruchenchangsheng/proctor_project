@@ -51,7 +51,7 @@ export default function SchoolStudentsPages() {
         params: { departmentId: departmentId || undefined, majorId: mId || undefined }
       });
       setList(r.data || []);
-    } catch (e) { message.error("加载学生失败"); } 
+    } catch (e) { message.error("加载学生失败"); }
     finally { setLoading(false); }
   }
 
@@ -70,7 +70,7 @@ export default function SchoolStudentsPages() {
   async function onFinish(values) {
     if (!majorId) { message.error("请先为该学院添加专业"); return; }
     if (!values.photo || values.photo.fileList.length === 0) { message.error("请上传证件照"); return; }
-    
+
     setSubmitLoading(true);
     const fd = new FormData();
     fd.append("name", values.name.trim());
@@ -99,7 +99,7 @@ export default function SchoolStudentsPages() {
 
   return (
     <div style={{ maxWidth: 1200, margin: "0 auto" }}>
-      <Card className="glass-effect" bordered={false} style={{ marginBottom: 24, borderRadius: 12 }}>
+      <Card className="glass-effect" variant={false} style={{ marginBottom: 24, borderRadius: 12 }}>
         <Title level={4} style={{ marginTop: 0, marginBottom: 20 }}>添加考生（含证件照）</Title>
         <Form form={form} layout="inline" onFinish={onFinish} style={{ gap: '12px 0' }}>
           <Form.Item name="name" rules={[{ required: true, message: '必填' }]}>
@@ -125,7 +125,7 @@ export default function SchoolStudentsPages() {
         </Form>
       </Card>
 
-      <Card className="glass-effect" bordered={false} style={{ borderRadius: 12 }}>
+      <Card className="glass-effect" variant={false} style={{ borderRadius: 12 }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
           <Title level={4} style={{ margin: 0 }}>学生列表</Title>
           <Space>

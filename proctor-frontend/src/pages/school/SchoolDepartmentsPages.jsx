@@ -42,12 +42,12 @@ export default function SchoolDepartmentsPages() {
 
   const columns = [
     { title: "ID", dataIndex: "id", key: "id", render: (t, r, i) => i + 1, width: 80 },
-    { title: "学院名称", dataIndex: "name", key: "name", render: (text) => <><BankOutlined style={{marginRight: 8, color: '#1677ff'}}/>{text}</> },
+    { title: "学院名称", dataIndex: "name", key: "name", render: (text) => <><BankOutlined style={{ marginRight: 8, color: '#1677ff' }} />{text}</> },
   ];
 
   return (
     <div style={{ maxWidth: 1000, margin: "0 auto" }}>
-      <Card className="glass-effect" bordered={false} style={{ marginBottom: 24, borderRadius: 12 }}>
+      <Card className="glass-effect" variant={false} style={{ marginBottom: 24, borderRadius: 12 }}>
         <Title level={4} style={{ marginTop: 0, marginBottom: 20 }}>添加学院</Title>
         <Form form={form} layout="inline" onFinish={addDept}>
           <Form.Item name="dept" rules={[{ required: true, message: '请输入学院名称' }]}>
@@ -61,15 +61,15 @@ export default function SchoolDepartmentsPages() {
         </Form>
       </Card>
 
-      <Card className="glass-effect" bordered={false} style={{ borderRadius: 12 }}>
+      <Card className="glass-effect" variant={false} style={{ borderRadius: 12 }}>
         <Title level={4} style={{ marginTop: 0, marginBottom: 20 }}>学院列表</Title>
-        <Table 
-          columns={columns} 
-          dataSource={list} 
-          rowKey="id" 
+        <Table
+          columns={columns}
+          dataSource={list}
+          rowKey="id"
           loading={loading}
           pagination={{ pageSize: 10 }}
-          style={{ background: 'transparent' }} 
+          style={{ background: 'transparent' }}
         />
       </Card>
     </div>

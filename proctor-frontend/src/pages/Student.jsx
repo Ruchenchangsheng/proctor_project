@@ -49,22 +49,22 @@ export default function Student() {
 
   return (
     <div style={{ maxWidth: 800, margin: "0 auto" }}>
-      <Card className="glass-effect" bordered={false} style={{ borderRadius: 16 }}>
+      <Card className="glass-effect" variant={false} style={{ borderRadius: 16 }}>
         <Title level={3} style={{ marginTop: 0, marginBottom: 24 }}>🎓 考生信息</Title>
-        
+
         <div style={{ display: "flex", gap: "32px", flexWrap: "wrap" }}>
           {/* 左侧证件照 */}
           <div style={{ width: 140, flexShrink: 0 }}>
             {photoUrl ? (
-              <Image 
-                src={photoUrl} 
-                alt="证件照" 
-                style={{ width: 140, height: 180, objectFit: "cover", borderRadius: 8, boxShadow: '0 4px 12px rgba(0,0,0,0.1)' }} 
+              <Image
+                src={photoUrl}
+                alt="证件照"
+                style={{ width: 140, height: 180, objectFit: "cover", borderRadius: 8, boxShadow: '0 4px 12px rgba(0,0,0,0.1)' }}
                 preview={{ mask: '点击放大' }}
               />
             ) : (
-              <div style={{ 
-                width: 140, height: 180, background: "rgba(255,255,255,0.5)", 
+              <div style={{
+                width: 140, height: 180, background: "rgba(255,255,255,0.5)",
                 borderRadius: 8, display: "flex", alignItems: "center", justifyContent: "center",
                 border: "1px dashed #ccc"
               }}>

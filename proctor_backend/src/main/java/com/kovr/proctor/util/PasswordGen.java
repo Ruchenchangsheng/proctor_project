@@ -7,7 +7,7 @@ import java.security.SecureRandom;
 @Component
 public class PasswordGen {
     private static final String ALPHA = "ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnpqrstuvwxyz";
-    private static final String NUM = "23456789";
+    private static final String NUM = "0123456789";
     private static final String SYM = "!@#_-";
     private final SecureRandom r = new SecureRandom();
 

@@ -44,11 +44,11 @@ export default function SchoolLayout() {
 
   return (
     <Layout style={{ minHeight: '100%', background: 'transparent' }}>
-      <Header 
-        className="glass-effect" 
-        style={{ 
-          display: 'flex', 
-          alignItems: 'center', 
+      <Header
+        className="glass-effect"
+        style={{
+          display: 'flex',
+          alignItems: 'center',
           justifyContent: 'space-between',
           padding: '0 24px',
           borderRadius: '12px',
@@ -61,9 +61,9 @@ export default function SchoolLayout() {
           <div style={{ fontSize: '18px', fontWeight: 'bold', marginRight: '40px', color: '#333' }}>
             🏫 学校后台
           </div>
-          <Menu 
-            mode="horizontal" 
-            selectedKeys={[currentKey]} 
+          <Menu
+            mode="horizontal"
+            selectedKeys={[currentKey]}
             onClick={(e) => navigate(e.key)}
             items={menuItems}
             style={{ background: 'transparent', borderBottom: 'none', flex: 1, minWidth: 0, fontWeight: 500 }}
@@ -71,7 +71,7 @@ export default function SchoolLayout() {
         </div>
 
         <Space size="middle">
-          <Tag color="blue" bordered={false} style={{ fontSize: 14, padding: '4px 8px' }}>
+          <Tag color="blue" variant={false} style={{ fontSize: 14, padding: '4px 8px' }}>
             {school?.name || "加载中..."}
           </Tag>
           <Text type="secondary" style={{ display: { xs: 'none', sm: 'inline-block' } }}>
