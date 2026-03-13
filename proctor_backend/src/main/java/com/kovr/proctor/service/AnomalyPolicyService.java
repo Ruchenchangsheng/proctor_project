@@ -25,6 +25,9 @@ public class AnomalyPolicyService {
     @Value("${anomaly.evidence.default-media-type:VIDEO}")
     private String defaultEvidenceMediaType;
 
+    @Value("${anomaly.max-reconnect-count:3}")
+    private int defaultMaxReconnectCount;
+
     public Policy getPolicy(Long schoolId) {
         if (schoolId == null) {
             return defaultPolicy();
@@ -32,17 +35,18 @@ public class AnomalyPolicyService {
         return policyBySchool.getOrDefault(schoolId, defaultPolicy());
     }
 
-    public Policy updatePolicy(Long schoolId, Double warningThreshold, Double severeThreshold, Long sampleIntervalMs, Long identityVerifyIntervalSec, String evidenceMediaType) {
+    public Policy updatePolicy(Long schoolId, Double warningThreshold, Double severeThreshold, Long sampleIntervalMs, Long identityVerifyIntervalSec, String evidenceMediaType, Integer maxReconnectCount) {
         Policy current = getPolicy(schoolId);
         double nextWarning = normalize(warningThreshold == null ? current.warningThreshold() : warningThreshold);
         double nextSevere = normalize(severeThreshold == null ? current.severeThreshold() : severeThreshold);
         long nextSampleMs = normalizeMs(sampleIntervalMs == null ? current.sampleIntervalMs() : sampleIntervalMs);
         long nextIdentitySec = normalizeSec(identityVerifyIntervalSec == null ? current.identityVerifyIntervalSec() : identityVerifyIntervalSec);
         String nextMediaType = normalizeMediaType(evidenceMediaType == null ? current.evidenceMediaType() : evidenceMediaType);
+        int nextMaxReconnect = normalizeReconnectCount(maxReconnectCount == null ? current.maxReconnectCount() : maxReconnectCount);
         if (nextSevere < nextWarning) {
             nextSevere = nextWarning;
         }
-        Policy next = new Policy(nextWarning, nextSevere, nextSampleMs, nextIdentitySec, nextMediaType);
+        Policy next = new Policy(nextWarning, nextSevere, nextSampleMs, nextIdentitySec, nextMediaType, nextMaxReconnect);
         if (schoolId != null) {
             policyBySchool.put(schoolId, next);
         }
@@ -55,7 +59,8 @@ public class AnomalyPolicyService {
                 "severeThreshold", p.severeThreshold(),
                 "sampleIntervalMs", p.sampleIntervalMs(),
                 "identityVerifyIntervalSec", p.identityVerifyIntervalSec(),
-                "evidenceMediaType", p.evidenceMediaType()
+                "evidenceMediaType", p.evidenceMediaType(),
+                "maxReconnectCount", p.maxReconnectCount()
         );
     }
 
@@ -63,7 +68,8 @@ public class AnomalyPolicyService {
         double warning = normalize(defaultWarningThreshold);
         double severe = normalize(defaultSevereThreshold);
         if (severe < warning) severe = warning;
-        return new Policy(warning, severe, normalizeMs(defaultSampleIntervalMs), normalizeSec(defaultIdentityVerifyIntervalSec), normalizeMediaType(defaultEvidenceMediaType));
+        return new Policy(warning, severe, normalizeMs(defaultSampleIntervalMs), normalizeSec(defaultIdentityVerifyIntervalSec), normalizeMediaType(defaultEvidenceMediaType),
+                normalizeReconnectCount(defaultMaxReconnectCount));
     }
 
 
@@ -85,6 +91,12 @@ public class AnomalyPolicyService {
         return "GIF".equals(v) ? "GIF" : "VIDEO";
     }
 
+    private int normalizeReconnectCount(int value) {
+        if (value < 0) return 0;
+        if (value > 20) return 20;
+        return value;
+    }
+
     private double normalize(double v) {
         if (Double.isNaN(v)) return 0.65d;
         if (v < 0d) return 0d;
@@ -92,5 +104,5 @@ public class AnomalyPolicyService {
         return v;
     }
 
-    public record Policy(double warningThreshold, double severeThreshold, long sampleIntervalMs, long identityVerifyIntervalSec, String evidenceMediaType) {}
+    public record Policy(double warningThreshold, double severeThreshold, long sampleIntervalMs, long identityVerifyIntervalSec, String evidenceMediaType, int maxReconnectCount) {}
 }

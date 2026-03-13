@@ -12,6 +12,7 @@ import com.kovr.proctor.service.*;
 import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.*;
+import org.springframework.jdbc.BadSqlGrammarException;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
@@ -43,6 +44,7 @@ public class StudentController {
     private final ObjectMapper om = new ObjectMapper();
     private final ConcurrentHashMap<String, Long> lastAnomalyAt = new ConcurrentHashMap<>();
     private final ConcurrentHashMap<String, Long> lastIdentityAt = new ConcurrentHashMap<>();
+    private final ConcurrentHashMap<Long, Integer> abnormalExitCounter = new ConcurrentHashMap<>();
 
     @Value("${app.face.verify.threshold:0.35}")
     double verifyThreshold;
@@ -214,8 +216,11 @@ public class StudentController {
                 return Map.of("hasRoom", false, "msg", "未找到该考试场次或无权限");
             }
             String status = String.valueOf(session.getOrDefault("sessionStatus", ""));
-            if ("FINISHED".equalsIgnoreCase(status)) {
+            if ("FINISHED".equalsIgnoreCase(status) || "CANCELLED".equalsIgnoreCase(status)) {
                 return Map.of("hasRoom", false, "ended", true, "msg", "该场考试已结束，无法再次进入");
+            }
+            if ("NOT_STARTED".equalsIgnoreCase(status) || "RUNNING".equalsIgnoreCase(status) || status.isBlank()) {
+                markSessionEntered(sessionId);
             }
             Map<String, Object> res = new LinkedHashMap<>(session);
             res.put("hasRoom", true);
@@ -241,6 +246,13 @@ public class StudentController {
         if (!isSessionRunning(session)) {
             autoFinishSession(session,"TIME_UP");
             return Map.of("ok", false, "ended", true, "autoSubmitted", true, "msg", "考试已结束，系统已自动交卷并退出");
+        }
+        if (!("FINISHED".equalsIgnoreCase(String.valueOf(session.getOrDefault("sessionStatus", "")))
+                || "CANCELLED".equalsIgnoreCase(String.valueOf(session.getOrDefault("sessionStatus", ""))))) {
+            Object sid = session.get("sessionId");
+            if (sid instanceof Number n) {
+                markSessionEntered(n.longValue());
+            }
         }
         Long roomId = roomIdNumber.longValue();
         byte[] bytes = photo.getBytes();
@@ -286,6 +298,13 @@ public class StudentController {
             autoFinishSession(session,"TIME_UP");
             return Map.of("ok", false, "ended", true, "autoSubmitted", true, "msg", "考试已结束，系统已自动交卷并退出");
         }
+        if (!("FINISHED".equalsIgnoreCase(String.valueOf(session.getOrDefault("sessionStatus", "")))
+                || "CANCELLED".equalsIgnoreCase(String.valueOf(session.getOrDefault("sessionStatus", ""))))) {
+            Object sid = session.get("sessionId");
+            if (sid instanceof Number n) {
+                markSessionEntered(n.longValue());
+            }
+        }
         Long roomId = roomIdNumber.longValue();
         byte[] bytes = photo.getBytes();
         String mime = Optional.ofNullable(photo.getContentType()).orElse("image/jpeg");
@@ -320,9 +339,13 @@ public class StudentController {
         }
         boolean running = isSessionRunning(session);
         String status = String.valueOf(session.getOrDefault("sessionStatus", ""));
-        if (!running || "FINISHED".equalsIgnoreCase(status)) {
+        if (!running || "FINISHED".equalsIgnoreCase(status)|| "CANCELLED".equalsIgnoreCase(status)) {
             autoFinishSession(session, "TIME_UP");
             return Map.of("ok", true, "ended", true, "msg", "考试已结束");
+        }
+        Object sid = session.get("sessionId");
+        if (sid instanceof Number n) {
+            markSessionEntered(n.longValue());
         }
         return Map.of("ok", true, "ended", false);
     }
@@ -334,6 +357,10 @@ public class StudentController {
         Map<String, Object> session = examSessionMapper.selectSessionRoomByStudentAndSessionId(u.getId(), sessionId);
         if (session == null) {
             return Map.of("ok", false, "msg", "考试场次不存在或无权限");
+        }
+        Object sid = session.get("sessionId");
+        if (sid instanceof Number n) {
+            markSessionEntered(n.longValue());
         }
         autoFinishSession(session, "SUBMITTED");
         return Map.of("ok", true, "ended", true, "msg", "已交卷并退出考试");
@@ -347,8 +374,24 @@ public class StudentController {
         if (session == null) {
             return Map.of("ok", false, "msg", "考试场次不存在或无权限");
         }
+
+        String status = String.valueOf(session.getOrDefault("sessionStatus", ""));
+        if ("FINISHED".equalsIgnoreCase(status) || "CANCELLED".equalsIgnoreCase(status)) {
+            return Map.of("ok", true, "ended", true);
+        }
+
+        Long schoolId = session.get("schoolId") instanceof Number n ? n.longValue() : loadSchoolId(u.getId());
+        int maxReconnectCount = anomalyPolicyService.getPolicy(schoolId).maxReconnectCount();
+        int used = abnormalExitCounter.merge(sessionId, 1, Integer::sum);
+        int remain = Math.max(0, maxReconnectCount - used);
+
+        if (used >= maxReconnectCount) {
+            autoFinishSession(session, "ABNORMAL_EXIT");
+            abnormalExitCounter.remove(sessionId);
+            return Map.of("ok", true, "ended", true, "msg", "异常退出次数已达上限，考试已终止", "maxReconnectCount", maxReconnectCount, "remainReconnectCount", 0);
+        }
         examSessionMapper.markAbnormalExit(sessionId);
-        return Map.of("ok", true);
+        return Map.of("ok", true, "ended", false, "msg", "已记录异常退出", "maxReconnectCount", maxReconnectCount, "remainReconnectCount", remain);
     }
 
     private List<Map<String, Object>> processFrame(Long roomId, Long studentId, byte[] bytes, String mime, long tsMs, AnomalyPolicyService.Policy policy) {
@@ -413,6 +456,14 @@ public class StudentController {
         item.put("severity", risk >= policy.severeThreshold() ? "SEVERE" : "WARNING");
         return item;
     }
+    private void markSessionEntered(Long sessionId) {
+        if (sessionId == null) return;
+        try {
+            examSessionMapper.markSessionEnteredWithTimestamp(sessionId);
+        } catch (BadSqlGrammarException ex) {
+            examSessionMapper.markSessionEnteredWithoutTimestamp(sessionId);
+        }
+    }
 
     private void autoFinishSession(Map<String, Object> session) {
         autoFinishSession(session, "TIME_UP");
@@ -421,8 +472,25 @@ public class StudentController {
     private void autoFinishSession(Map<String, Object> session, String reason) {
         if (session == null) return;
         Object sid = session.get("sessionId");
-        if (sid instanceof Number n) {
-            examSessionMapper.finishSessionWithReason(n.longValue(), reason == null ? "TIME_UP" : reason);
+
+        if (!(sid instanceof Number n)) return;
+
+        long sessionId = n.longValue();
+        String normalizedReason = reason == null ? "TIME_UP" : reason.trim().toUpperCase();
+        boolean cancelSession = "ABNORMAL_EXIT".equals(normalizedReason) || "FORCED_TERMINATED".equals(normalizedReason);
+
+        try {
+            if (cancelSession) {
+                examSessionMapper.cancelSessionWithTimestamp(sessionId);
+            } else {
+                examSessionMapper.finishSessionWithTimestamp(sessionId);
+            }
+        } catch (BadSqlGrammarException ex) {
+            if (cancelSession) {
+                examSessionMapper.cancelSessionWithoutTimestamp(sessionId);
+            } else {
+                examSessionMapper.finishSessionWithoutTimestamp(sessionId);
+            }
         }
     }
 

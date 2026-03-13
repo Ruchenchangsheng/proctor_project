@@ -1,8 +1,10 @@
 package com.kovr.proctor.security;
 
+import jakarta.servlet.http.HttpServletResponse;
 import lombok.RequiredArgsConstructor;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.http.MediaType;
 import org.springframework.http.HttpMethod;
 import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.config.Customizer;
@@ -25,9 +27,31 @@ public class SecurityConfig {
 
     @Bean
     SecurityFilterChain chain(HttpSecurity http) throws Exception {
-        http.csrf(cs -> cs.disable()).cors(Customizer.withDefaults())            // ✅ 开启 CORS 支持（读取下文 CorsConfig 的 Bean）
-                .sessionManagement(s -> s.sessionCreationPolicy(SessionCreationPolicy.STATELESS)).authorizeHttpRequests(auth -> auth.requestMatchers(HttpMethod.OPTIONS, "/**").permitAll() // ✅ 预检放行
-                        .requestMatchers("/api/auth/**", "/ws/**", "/v3/api-docs/**", "/swagger-ui/**").permitAll().anyRequest().authenticated()).addFilterBefore(jwt, UsernamePasswordAuthenticationFilter.class);
+        http.csrf(cs -> cs.disable())
+                .cors(Customizer.withDefaults())
+                .sessionManagement(s -> s.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
+                .authorizeHttpRequests(auth -> auth
+                        .requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()
+                        .requestMatchers("/api/auth/**", "/ws/**", "/v3/api-docs/**", "/swagger-ui/**", "/error").permitAll()
+                        .anyRequest().authenticated())
+                .exceptionHandling(ex -> ex
+                        .authenticationEntryPoint((request, response, authException) -> {
+                            if (response.isCommitted()) {
+                                return;
+                            }
+                            response.setStatus(HttpServletResponse.SC_UNAUTHORIZED);
+                            response.setContentType(MediaType.APPLICATION_JSON_VALUE);
+                            response.getWriter().write("{\"error\":\"Unauthorized\",\"message\":\"请先登录\",\"code\":\"UNAUTHORIZED\"}");
+                        })
+                        .accessDeniedHandler((request, response, accessDeniedException) -> {
+                            if (response.isCommitted()) {
+                                return;
+                            }
+                            response.setStatus(HttpServletResponse.SC_FORBIDDEN);
+                            response.setContentType(MediaType.APPLICATION_JSON_VALUE);
+                            response.getWriter().write("{\"error\":\"Forbidden\",\"message\":\"无权限访问\",\"code\":\"FORBIDDEN\"}");
+                        }))
+                .addFilterBefore(jwt, UsernamePasswordAuthenticationFilter.class);
         return http.build();
     }
 

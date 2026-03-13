@@ -1,16 +1,37 @@
 package com.kovr.proctor.security;
 
-import jakarta.servlet.*; import jakarta.servlet.http.*; import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
-import org.springframework.security.core.context.SecurityContextHolder; import org.springframework.security.core.userdetails.UserDetailsService;
+import io.jsonwebtoken.JwtException;
+import jakarta.servlet.FilterChain;
+import jakarta.servlet.ServletException;
+import jakarta.servlet.http.HttpServletRequest;
+import jakarta.servlet.http.HttpServletResponse;
+import lombok.RequiredArgsConstructor;
+import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
+import org.springframework.security.core.context.SecurityContextHolder;
+import org.springframework.security.core.userdetails.UserDetailsService;
 import org.springframework.security.core.userdetails.UsernameNotFoundException;
-import org.springframework.stereotype.Component; import org.springframework.web.filter.OncePerRequestFilter;
-import lombok.RequiredArgsConstructor; import io.jsonwebtoken.*;
+import org.springframework.stereotype.Component;
+import org.springframework.web.filter.OncePerRequestFilter;
 
 import java.io.IOException;
 
-@Component @RequiredArgsConstructor
+@Component
+@RequiredArgsConstructor
 public class JwtAuthFilter extends OncePerRequestFilter {
-    private final JwtUtil jwt; private final UserDetailsService uds;
+
+    private final JwtUtil jwt;
+    private final UserDetailsService uds;
+
+    @Override
+    protected boolean shouldNotFilterAsyncDispatch() {
+        return true;
+    }
+
+    @Override
+    protected boolean shouldNotFilterErrorDispatch() {
+        return true;
+    }
+
     @Override
     protected void doFilterInternal(HttpServletRequest req, HttpServletResponse res, FilterChain chain)
             throws ServletException, IOException {
@@ -21,7 +42,7 @@ public class JwtAuthFilter extends OncePerRequestFilter {
                 var user = uds.loadUserByUsername(claims.getSubject()); // 这里 subject 可能是数字ID
                 var auth = new UsernamePasswordAuthenticationToken(user, null, user.getAuthorities());
                 SecurityContextHolder.getContext().setAuthentication(auth);
-            } catch (io.jsonwebtoken.JwtException | UsernameNotFoundException e) {
+            } catch (JwtException | UsernameNotFoundException e) {
                 // ❗ 忽略：保持未认证状态，让后续入口返回 401，而不是抛异常导致 403/500
                 SecurityContextHolder.clearContext();
             }

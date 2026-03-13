@@ -43,11 +43,21 @@ export default function StudentHome() {
       title: "状态",
       dataIndex: "phase",
       key: "phase",
-      render: phase => (
+
+      render: (phase) => (
         <Tag color={phase === "RUNNING" ? "green" : phase === "COMPLETED" ? "default" : "orange"}>
           {phase === "RUNNING" ? "进行中" : phase === "COMPLETED" ? "已结束" : "待开始"}
         </Tag>
       )
+    },
+    {
+      title: "参与情况",
+      key: "participation",
+      render: (_, record) => {
+        const status = String(record.sessionStatus || "").toUpperCase();
+        if (status === "FINISHED") return <Tag color="green">已完成考试</Tag>;
+        return <Tag>未参加考试</Tag>;
+      }
     },
     {
       title: "操作",
@@ -56,7 +66,7 @@ export default function StudentHome() {
         <Button
           type="primary"
           icon={<LoginOutlined />}
-          disabled={record.phase === "COMPLETED"}
+          disabled={record.phase === "COMPLETED" || record.phase === "TERMINATED" || record.sessionStatus === "FINISHED" || record.sessionStatus === "CANCELLED"}
           onClick={() => navigate(`/student/exams/${record.sessionId}/verify`)} // 修正路径
         >
           进入考试

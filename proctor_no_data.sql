@@ -11,7 +11,7 @@
  Target Server Version : 80042 (8.0.42)
  File Encoding         : 65001
 
- Date: 12/03/2026 02:42:18
+ Date: 12/03/2026 18:27:05
 */
 
 SET NAMES utf8mb4;
@@ -47,7 +47,7 @@ CREATE TABLE `anomaly_evidences`  (
   INDEX `idx_evidence_room`(`exam_room_id` ASC) USING BTREE,
   INDEX `idx_evidence_school`(`school_id` ASC) USING BTREE,
   INDEX `idx_evidence_student`(`student_id` ASC) USING BTREE
-) ENGINE = InnoDB AUTO_INCREMENT = 1 CHARACTER SET = utf8mb4 COLLATE = utf8mb4_0900_ai_ci COMMENT = '异常证据表' ROW_FORMAT = DYNAMIC;
+) ENGINE = InnoDB AUTO_INCREMENT = 13 CHARACTER SET = utf8mb4 COLLATE = utf8mb4_0900_ai_ci COMMENT = '异常证据表' ROW_FORMAT = DYNAMIC;
 
 -- ----------------------------
 -- Table structure for departments
@@ -60,7 +60,7 @@ CREATE TABLE `departments`  (
   PRIMARY KEY (`id`) USING BTREE,
   INDEX `idx_dept_school`(`school_id` ASC) USING BTREE,
   CONSTRAINT `fk_dept_school` FOREIGN KEY (`school_id`) REFERENCES `schools` (`id`) ON DELETE CASCADE ON UPDATE RESTRICT
-) ENGINE = InnoDB AUTO_INCREMENT = 5 CHARACTER SET = utf8mb4 COLLATE = utf8mb4_0900_ai_ci COMMENT = '学院表' ROW_FORMAT = DYNAMIC;
+) ENGINE = InnoDB AUTO_INCREMENT = 6 CHARACTER SET = utf8mb4 COLLATE = utf8mb4_0900_ai_ci COMMENT = '学院表' ROW_FORMAT = DYNAMIC;
 
 -- ----------------------------
 -- Table structure for exam_room_enrollments
@@ -76,7 +76,7 @@ CREATE TABLE `exam_room_enrollments`  (
   INDEX `fk_ere_student`(`student_id` ASC) USING BTREE,
   CONSTRAINT `fk_ere_room` FOREIGN KEY (`exam_room_id`) REFERENCES `exam_rooms` (`id`) ON DELETE CASCADE ON UPDATE RESTRICT,
   CONSTRAINT `fk_ere_student` FOREIGN KEY (`student_id`) REFERENCES `users` (`id`) ON DELETE CASCADE ON UPDATE RESTRICT
-) ENGINE = InnoDB AUTO_INCREMENT = 17 CHARACTER SET = utf8mb4 COLLATE = utf8mb4_0900_ai_ci COMMENT = '房间-学生分配' ROW_FORMAT = DYNAMIC;
+) ENGINE = InnoDB AUTO_INCREMENT = 81 CHARACTER SET = utf8mb4 COLLATE = utf8mb4_0900_ai_ci COMMENT = '房间-学生分配' ROW_FORMAT = DYNAMIC;
 
 -- ----------------------------
 -- Table structure for exam_rooms
@@ -94,7 +94,7 @@ CREATE TABLE `exam_rooms`  (
   INDEX `fk_er_teacher`(`invigilator_id` ASC) USING BTREE,
   CONSTRAINT `fk_er_exam` FOREIGN KEY (`exam_id`) REFERENCES `exams` (`id`) ON DELETE CASCADE ON UPDATE RESTRICT,
   CONSTRAINT `fk_er_teacher` FOREIGN KEY (`invigilator_id`) REFERENCES `users` (`id`) ON DELETE CASCADE ON UPDATE RESTRICT
-) ENGINE = InnoDB AUTO_INCREMENT = 5 CHARACTER SET = utf8mb4 COLLATE = utf8mb4_0900_ai_ci COMMENT = '考试-房间' ROW_FORMAT = DYNAMIC;
+) ENGINE = InnoDB AUTO_INCREMENT = 13 CHARACTER SET = utf8mb4 COLLATE = utf8mb4_0900_ai_ci COMMENT = '考试-房间' ROW_FORMAT = DYNAMIC;
 
 -- ----------------------------
 -- Table structure for exam_sessions
@@ -111,9 +111,6 @@ CREATE TABLE `exam_sessions`  (
   `student_id` bigint NOT NULL COMMENT '学生（users.id）',
   `status` enum('NOT_STARTED','RUNNING','FINISHED','CANCELLED') CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci NULL DEFAULT 'NOT_STARTED' COMMENT '状态机',
   `last_verify_score` double NULL DEFAULT NULL COMMENT '最近一次1:1相似度',
-  `last_verify_at` timestamp NULL DEFAULT NULL COMMENT '最近验证时间',
-  `entered_at` datetime NULL DEFAULT NULL COMMENT '进入时间',
-  `finished_at` datetime NULL DEFAULT NULL COMMENT '完成/结束时间',
   PRIMARY KEY (`id`) USING BTREE,
   UNIQUE INDEX `uq_exam_student`(`exam_id` ASC, `student_id` ASC) USING BTREE,
   INDEX `idx_exam_sessions_exam`(`exam_id` ASC) USING BTREE,
@@ -124,7 +121,7 @@ CREATE TABLE `exam_sessions`  (
   CONSTRAINT `fk_ses_inv` FOREIGN KEY (`invigilator_id`) REFERENCES `users` (`id`) ON DELETE SET NULL ON UPDATE RESTRICT,
   CONSTRAINT `fk_ses_room` FOREIGN KEY (`exam_room_id`) REFERENCES `exam_rooms` (`id`) ON DELETE SET NULL ON UPDATE RESTRICT,
   CONSTRAINT `fk_ses_student` FOREIGN KEY (`student_id`) REFERENCES `users` (`id`) ON DELETE CASCADE ON UPDATE RESTRICT
-) ENGINE = InnoDB AUTO_INCREMENT = 17 CHARACTER SET = utf8mb4 COLLATE = utf8mb4_0900_ai_ci COMMENT = '考试会话' ROW_FORMAT = DYNAMIC;
+) ENGINE = InnoDB AUTO_INCREMENT = 81 CHARACTER SET = utf8mb4 COLLATE = utf8mb4_0900_ai_ci COMMENT = '考试会话' ROW_FORMAT = DYNAMIC;
 
 -- ----------------------------
 -- Table structure for exam_violations
@@ -170,7 +167,7 @@ CREATE TABLE `exams`  (
   CONSTRAINT `fk_exam_dept` FOREIGN KEY (`department_id`) REFERENCES `departments` (`id`) ON DELETE SET NULL ON UPDATE RESTRICT,
   CONSTRAINT `fk_exam_major` FOREIGN KEY (`major_id`) REFERENCES `majors` (`id`) ON DELETE SET NULL ON UPDATE RESTRICT,
   CONSTRAINT `fk_exam_school` FOREIGN KEY (`school_id`) REFERENCES `schools` (`id`) ON DELETE CASCADE ON UPDATE RESTRICT
-) ENGINE = InnoDB AUTO_INCREMENT = 5 CHARACTER SET = utf8mb4 COLLATE = utf8mb4_0900_ai_ci COMMENT = '考试表' ROW_FORMAT = DYNAMIC;
+) ENGINE = InnoDB AUTO_INCREMENT = 13 CHARACTER SET = utf8mb4 COLLATE = utf8mb4_0900_ai_ci COMMENT = '考试表' ROW_FORMAT = DYNAMIC;
 
 -- ----------------------------
 -- Table structure for majors
@@ -183,7 +180,7 @@ CREATE TABLE `majors`  (
   PRIMARY KEY (`id`) USING BTREE,
   INDEX `idx_major_dept`(`department_id` ASC) USING BTREE,
   CONSTRAINT `fk_major_dept` FOREIGN KEY (`department_id`) REFERENCES `departments` (`id`) ON DELETE CASCADE ON UPDATE RESTRICT
-) ENGINE = InnoDB AUTO_INCREMENT = 7 CHARACTER SET = utf8mb4 COLLATE = utf8mb4_0900_ai_ci COMMENT = '专业表' ROW_FORMAT = DYNAMIC;
+) ENGINE = InnoDB AUTO_INCREMENT = 8 CHARACTER SET = utf8mb4 COLLATE = utf8mb4_0900_ai_ci COMMENT = '专业表' ROW_FORMAT = DYNAMIC;
 
 -- ----------------------------
 -- Table structure for school_admin
@@ -209,7 +206,7 @@ CREATE TABLE `schools`  (
   `domain` varchar(191) CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci NULL DEFAULT NULL COMMENT '学校邮箱域名（如 @xxx.edu）',
   PRIMARY KEY (`id`) USING BTREE,
   UNIQUE INDEX `name`(`name` ASC) USING BTREE
-) ENGINE = InnoDB AUTO_INCREMENT = 34 CHARACTER SET = utf8mb4 COLLATE = utf8mb4_0900_ai_ci COMMENT = '学校表' ROW_FORMAT = DYNAMIC;
+) ENGINE = InnoDB AUTO_INCREMENT = 35 CHARACTER SET = utf8mb4 COLLATE = utf8mb4_0900_ai_ci COMMENT = '学校表' ROW_FORMAT = DYNAMIC;
 
 -- ----------------------------
 -- Table structure for students
@@ -275,6 +272,6 @@ CREATE TABLE `users`  (
   PRIMARY KEY (`id`) USING BTREE,
   UNIQUE INDEX `email`(`email` ASC) USING BTREE,
   INDEX `idx_users_email`(`email` ASC) USING BTREE
-) ENGINE = InnoDB AUTO_INCREMENT = 70 CHARACTER SET = utf8mb4 COLLATE = utf8mb4_0900_ai_ci COMMENT = '用户账号表（最小字段）' ROW_FORMAT = DYNAMIC;
+) ENGINE = InnoDB AUTO_INCREMENT = 81 CHARACTER SET = utf8mb4 COLLATE = utf8mb4_0900_ai_ci COMMENT = '用户账号表（最小字段）' ROW_FORMAT = DYNAMIC;
 
 SET FOREIGN_KEY_CHECKS = 1;

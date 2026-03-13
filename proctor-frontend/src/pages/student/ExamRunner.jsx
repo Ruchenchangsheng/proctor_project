@@ -23,6 +23,8 @@ export default function ExamRunner() {
   const uploadTimerRef = useRef(null);
   const heartbeatTimerRef = useRef(null);
   const uploadBusyRef = useRef(false);
+  const normalExitRef = useRef(false);
+  const exitingRef = useRef(false);
 
   const [room, setRoom] = useState(null);
   const [msg, setMsg] = useState("正在连接考场...");
@@ -55,6 +57,22 @@ export default function ExamRunner() {
       heartbeatTimerRef.current = null;
     }
   };
+
+  const teardownRealtimeResources = () => {
+    stompRef.current?.deactivate();
+    peersRef.current.forEach((pc) => pc.close());
+    peersRef.current.clear();
+
+    if (localStreamRef.current) {
+      localStreamRef.current.getTracks().forEach((t) => t.stop());
+      localStreamRef.current = null;
+    }
+
+    if (videoRef.current) {
+      videoRef.current.srcObject = null;
+    }
+  };
+
 
   const closePeer = (peerId) => {
     const pc = peersRef.current.get(peerId);
@@ -98,8 +116,13 @@ export default function ExamRunner() {
   };
 
   const exitExam = (tip) => {
+    if (exitingRef.current) return;
+    exitingRef.current = true;
+    normalExitRef.current = true;
+
     clearTimers();
     setMsg(tip || "考试已结束");
+
     const examRoomSignalId = roomSignalIdRef.current;
     if (examRoomSignalId && studentSenderId) {
       publishSignal(examRoomSignalId, {
@@ -108,6 +131,8 @@ export default function ExamRunner() {
         senderId: studentSenderId,
       });
     }
+
+    teardownRealtimeResources();
     window.setTimeout(() => navigate("/student/home"), 1200);
   };
 
@@ -126,7 +151,7 @@ export default function ExamRunner() {
       const ctx = canvas.getContext("2d");
       if (!ctx) return;
       ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
-      const blob = await new Promise((resolve) => canvas.toBlob(resolve, "image/jpeg", 0.7));
+      const blob = await new Promise((resolve) => canvas.toBlob(resolve, "image/jpeg", 0.9));
       if (!blob) return;
 
       const fd = new FormData();
@@ -280,8 +305,10 @@ export default function ExamRunner() {
             senderRole: "STUDENT",
             senderId: studentSenderId,
           });
-          uploadTimerRef.current = window.setInterval(uploadFrameOnce, 1200);
-          heartbeatTimerRef.current = window.setInterval(checkExamHeartbeat, 2000);
+          // x毫秒上传一帧
+          uploadTimerRef.current = window.setInterval(uploadFrameOnce, 200);
+          // 健康检测-是否异常退出等等
+          heartbeatTimerRef.current = window.setInterval(checkExamHeartbeat, 1000);
           setMsg("监控已开启，请开始答题");
         };
 
@@ -296,16 +323,7 @@ export default function ExamRunner() {
 
       clearTimers();
 
-      if (sessionId) {
-        api.post(`/student/exams/${sessionId}/abnormal-exit`).catch(() => { });
-      }
-
-      if (heartbeatTimerRef.current) {
-        window.clearInterval(heartbeatTimerRef.current);
-        heartbeatTimerRef.current = null;
-      }
-
-      if (sessionId) {
+      if (sessionId && !normalExitRef.current) {
         api.post(`/student/exams/${sessionId}/abnormal-exit`).catch(() => { });
       }
 
@@ -317,15 +335,7 @@ export default function ExamRunner() {
           senderId: studentSenderId,
         });
       }
-
-      stompRef.current?.deactivate();
-      peersRef.current.forEach((pc) => pc.close());
-      peersRef.current.clear();
-
-      if (localStreamRef.current) {
-        localStreamRef.current.getTracks().forEach((t) => t.stop());
-        localStreamRef.current = null;
-      }
+      teardownRealtimeResources();
     };
   }, [sessionId, studentSenderId, navigate]);
 
@@ -339,7 +349,7 @@ export default function ExamRunner() {
               onClick={async () => {
                 if (!sessionId) return;
                 await api.post(`/student/exams/${sessionId}/submit`).catch(() => { });
-                navigate("/student/home");
+                exitExam("已交卷并退出考试");
               }}
             >
               提前交卷

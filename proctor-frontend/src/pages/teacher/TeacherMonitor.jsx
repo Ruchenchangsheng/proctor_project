@@ -24,6 +24,7 @@ export default function TeacherMonitor() {
   const stompRef = useRef(null);
   const peersRef = useRef(new Map());
   const allStudentsRef = useRef([]);
+  const lastOfferAttemptRef = useRef(new Map());
 
   function normalizeId(value) {
     if (value === null || value === undefined || value === "") return "";
@@ -356,12 +357,19 @@ export default function TeacherMonitor() {
             allStudentsRef.current.forEach((s) => {
               const sid = Number(s.studentId);
               const peer = peersRef.current.get(sid);
-              const hasVideo = hasActiveRemoteVideo(peer);
-              if (!hasVideo && (!peer || ["failed", "disconnected", "closed"].includes(peer.connectionState))) {
-                createOfferForStudent(sid);
+              if (!hasVideo) {
+                const now = Date.now();
+                const last = lastOfferAttemptRef.current.get(sid) || 0;
+                // 单个学生最小重试间隔 0.5 秒
+                if (now - last >= 500) {
+                  lastOfferAttemptRef.current.set(sid, now);
+                  closePeer(sid);
+                  createOfferForStudent(sid);
+                }
               }
             });
-          }, 7000);
+            // 每 0.5 秒扫描一次每个学生的视频流状态。
+          }, 500);
           setMsg("");
         };
 
@@ -377,6 +385,7 @@ export default function TeacherMonitor() {
       stompRef.current?.deactivate();
       peersRef.current.forEach((pc) => pc.close());
       peersRef.current.clear();
+      lastOfferAttemptRef.current.clear();
       setLiveStudents([]);
       allStudentsRef.current = [];
     };

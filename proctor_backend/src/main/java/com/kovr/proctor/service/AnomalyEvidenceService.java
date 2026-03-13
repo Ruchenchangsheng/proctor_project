@@ -1,6 +1,7 @@
 package com.kovr.proctor.service;
 
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import com.kovr.proctor.domain.entity.AnomalyEvidenceEntity;
 import com.kovr.proctor.infra.mapper.AnomalyEvidenceMapper;
 import org.springframework.beans.factory.annotation.Value;
@@ -40,6 +41,7 @@ import java.util.concurrent.ConcurrentHashMap;
 
 @Service
 @RequiredArgsConstructor
+@Slf4j
 public class AnomalyEvidenceService {
     private static final DateTimeFormatter TS_FMT = DateTimeFormatter.ofPattern("yyyyMMddHHmmss");
 
@@ -201,7 +203,10 @@ public class AnomalyEvidenceService {
             }
 
             if (!windowFrames.isEmpty()) {
-                return trimToMaxFrames(windowFrames);
+                List<FrameSnapshot> trimmedWindow = trimToMaxFrames(windowFrames);
+                if (trimmedWindow.size() >= 2) {
+                    return trimmedWindow;
+                }
             }
 
             int skip = Math.max(0, deque.size() - maxFramesPerGif);
@@ -246,7 +251,7 @@ public class AnomalyEvidenceService {
             String mediaType = "webm".equals(normalized) ? "video/webm" : "video/mp4";
             return new MediaSpec(videoPath.toAbsolutePath().toString(), mediaType, normalized);
         }
-
+        log.warn("Evidence media configured as VIDEO but ffmpeg render failed, fallback to GIF: schoolId={}, target={}", schoolId, videoPath);
         Path gifPath = dir.resolve(baseName + ".gif");
         createGifWithTiming(snapshots, gifPath);
         return new MediaSpec(gifPath.toAbsolutePath().toString(), MediaType.IMAGE_GIF_VALUE, "gif");

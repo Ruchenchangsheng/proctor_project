@@ -5,6 +5,7 @@ public record UpdateAnomalyPolicyReq(
         Double severeThreshold,
         Long sampleIntervalMs,
         Long identityVerifyIntervalSec,
-        String evidenceMediaType
+        String evidenceMediaType,
+        Integer maxReconnectCount
 ) {
 }
