@@ -4,10 +4,13 @@ import { api } from "../../apiClient";
 import { createStomp } from "../../stomp";
 import { useAuthStore } from "../../store/auth";
 import { Button, Card, Typography, Badge, Space, Alert, Tag } from "antd";
+import { clearExamMediaReady, hasExamMediaReady, loadExamMediaPreference } from "./examMediaGate";
+import useCatalogTranslation from "../../i18n/useCatalogTranslation";
 
 const { Text } = Typography;
 
 export default function ExamRunner() {
+  const { tr } = useCatalogTranslation();
   const { sessionId } = useParams();
   const me = useAuthStore((s) => s.me);
   const navigate = useNavigate();
@@ -21,13 +24,18 @@ export default function ExamRunner() {
   const roomSignalIdRef = useRef(0);
   const frameApiPathRef = useRef("");
   const uploadTimerRef = useRef(null);
+  const uploadLoopStoppedRef = useRef(false);
   const heartbeatTimerRef = useRef(null);
+  const mediaRecorderRef = useRef(null);
+  const videoChunkApiPathRef = useRef("");
+  const lastChunkTsRef = useRef(0);
   const uploadBusyRef = useRef(false);
   const normalExitRef = useRef(false);
   const exitingRef = useRef(false);
 
   const [room, setRoom] = useState(null);
   const [msg, setMsg] = useState("正在连接考场...");
+  const [micEnabled, setMicEnabled] = useState(false);
 
   const studentSenderId = me?.studentId || me?.userId || me?.id;
 
@@ -40,7 +48,11 @@ export default function ExamRunner() {
 
   const publishSignal = (examRoomSignalId, payload) => {
     const client = stompRef.current;
-    if (!client?.connected) return;
+    if (!client?.connected) {
+      console.warn("[student-exam] signal skipped because stomp is not connected", payload);
+      return;
+    }
+    console.info("[student-exam] publish signal", { roomId: examRoomSignalId, ...payload });
     client.publish({
       destination: "/app/exam-room.signal",
       body: JSON.stringify({ roomId: Number(examRoomSignalId), ...payload }),
@@ -48,8 +60,9 @@ export default function ExamRunner() {
   }
 
   const clearTimers = () => {
+    uploadLoopStoppedRef.current = true;
     if (uploadTimerRef.current) {
-      window.clearInterval(uploadTimerRef.current);
+      window.clearTimeout(uploadTimerRef.current);
       uploadTimerRef.current = null;
     }
     if (heartbeatTimerRef.current) {
@@ -59,6 +72,12 @@ export default function ExamRunner() {
   };
 
   const teardownRealtimeResources = () => {
+
+    if (mediaRecorderRef.current && mediaRecorderRef.current.state !== "inactive") {
+      mediaRecorderRef.current.stop();
+    }
+    mediaRecorderRef.current = null;
+
     stompRef.current?.deactivate();
     peersRef.current.forEach((pc) => pc.close());
     peersRef.current.clear();
@@ -88,6 +107,7 @@ export default function ExamRunner() {
     }
 
     const pc = new RTCPeerConnection({ iceServers: [{ urls: "stun:stun.l.google.com:19302" }] });
+    console.info("[student-exam] create peer for teacher", { peerId, examRoomSignalId });
 
     const localStream = localStreamRef.current;
     if (localStream) {
@@ -106,6 +126,7 @@ export default function ExamRunner() {
     };
 
     pc.onconnectionstatechange = () => {
+      console.info("[student-exam] peer connection state", { peerId, state: pc.connectionState });
       if (["failed", "closed", "disconnected"].includes(pc.connectionState)) {
         closePeer(peerId);
       }
@@ -119,6 +140,7 @@ export default function ExamRunner() {
     if (exitingRef.current) return;
     exitingRef.current = true;
     normalExitRef.current = true;
+    clearExamMediaReady(sessionId);
 
     clearTimers();
     setMsg(tip || "考试已结束");
@@ -151,11 +173,12 @@ export default function ExamRunner() {
       const ctx = canvas.getContext("2d");
       if (!ctx) return;
       ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
-      const blob = await new Promise((resolve) => canvas.toBlob(resolve, "image/jpeg", 0.9));
+      const blob = await new Promise((resolve) => canvas.toBlob(resolve, "image/jpeg", 0.98));
       if (!blob) return;
 
       const fd = new FormData();
       fd.append("photo", blob, "frame.jpg");
+      fd.append("capturedAtMs", String(Date.now()));
 
       const resp = await api.post(apiPath, fd);
       if (resp?.data?.ended) {
@@ -191,6 +214,110 @@ export default function ExamRunner() {
     }
   };
 
+  const scheduleFrameUpload = () => {
+    if (uploadTimerRef.current) return;
+    uploadLoopStoppedRef.current = false;
+    const loop = async () => {
+      if (uploadLoopStoppedRef.current) return;
+      await uploadFrameOnce();
+      if (uploadLoopStoppedRef.current) return;
+      // 与异常模型 30fps 的训练口径对齐，这里固定按约 33ms 一次上传。
+      uploadTimerRef.current = window.setTimeout(loop, 33);
+    };
+    uploadTimerRef.current = window.setTimeout(loop, 0);
+  };
+
+
+  const startVideoRecording = (stream) => {
+    if (!window.MediaRecorder || !stream) return;
+    const apiPath = videoChunkApiPathRef.current;
+    if (!apiPath) return;
+
+    try {
+      const hasAudioTrack = stream.getAudioTracks().length > 0;
+      const mimeCandidates = hasAudioTrack
+        ? [
+          "video/webm;codecs=vp9,opus",
+          "video/webm;codecs=vp8,opus",
+          "video/webm;codecs=h264,opus",
+          "video/webm",
+        ]
+        : [
+          "video/webm;codecs=vp9",
+          "video/webm;codecs=vp8",
+          "video/webm",
+        ];
+      const mimeType = mimeCandidates.find((candidate) => MediaRecorder.isTypeSupported(candidate)) || "";
+      const options = {
+        ...(mimeType ? { mimeType } : {}),
+        videoBitsPerSecond: mimeType.includes("vp9") ? 6_000_000 : mimeType.includes("vp8") ? 4_000_000 : 2_500_000,
+      };
+
+      const recorder = new MediaRecorder(stream, options);
+      mediaRecorderRef.current = recorder;
+      lastChunkTsRef.current = Date.now();
+
+      recorder.ondataavailable = async (event) => {
+        if (!event.data || event.data.size <= 0) return;
+        const chunkEndAtMs = Date.now();
+        const chunkStartAtMs = lastChunkTsRef.current || Math.max(0, chunkEndAtMs - 1000);
+        lastChunkTsRef.current = chunkEndAtMs;
+
+        const fd = new FormData();
+        fd.append("video", event.data, "chunk.webm");
+        fd.append("chunkStartAtMs", String(chunkStartAtMs));
+        fd.append("chunkEndAtMs", String(chunkEndAtMs));
+
+        try {
+          await api.post(apiPath, fd);
+        } catch {
+          // 视频分片失败不影响主流程
+        }
+      };
+
+      recorder.start(1000);
+    } catch {
+      // MediaRecorder 初始化失败则回退为仅帧上传
+    }
+  };
+
+  const requestExamMedia = async () => {
+    const preference = loadExamMediaPreference(sessionId);
+    const constraints = {
+      video: preference?.videoDeviceId
+        ? { deviceId: { exact: preference.videoDeviceId } }
+        : true,
+      audio: {
+        ...(preference?.audioDeviceId ? { deviceId: { exact: preference.audioDeviceId } } : {}),
+        echoCancellation: true,
+        noiseSuppression: true,
+        autoGainControl: true,
+      },
+    };
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia(constraints);
+      const hasVideoTrack = stream.getVideoTracks().some((track) => track.readyState === "live");
+      const hasAudioTrack = stream.getAudioTracks().some((track) => track.readyState === "live");
+      if (!hasVideoTrack || !hasAudioTrack) {
+        stream.getTracks().forEach((track) => track.stop());
+        throw new Error("必须同时开启摄像头和麦克风才能进入考试");
+      }
+      setMicEnabled(true);
+      return stream;
+    } catch (error) {
+      setMicEnabled(false);
+      clearExamMediaReady(sessionId);
+      const name = error?.name || "";
+      if (name === "NotAllowedError" || name === "PermissionDeniedError") {
+        throw new Error("必须同意调用摄像头和麦克风，否则无法进入考试");
+      }
+      if (name === "NotFoundError" || name === "DevicesNotFoundError") {
+        throw new Error("未检测到可用的摄像头或麦克风，无法进入考试");
+      }
+      throw error instanceof Error ? error : new Error("必须同时开启摄像头和麦克风才能进入考试");
+    }
+  };
+
   const checkExamHeartbeat = async () => {
     if (!sessionId) return;
     try {
@@ -209,6 +336,11 @@ export default function ExamRunner() {
 
     (async () => {
       try {
+        if (!hasExamMediaReady(sessionId)) {
+          setMsg("请先在考前身份核验页完成摄像头和麦克风授权，再进入考试");
+          navigate(sessionId ? `/student/exams/${sessionId}/verify` : "/student/verify", { replace: true });
+          return;
+        }
 
         if (!studentSenderId) {
           setMsg("无法识别当前学生身份，请重新登录");
@@ -220,42 +352,69 @@ export default function ExamRunner() {
           return;
         }
         if (!navigator.mediaDevices?.getUserMedia) {
-          setMsg("当前浏览器不支持摄像头访问");
+          setMsg("当前浏览器不支持摄像头和麦克风访问");
           return;
         }
+        const stream = await requestExamMedia();
+        if (!active) {
+          stream.getTracks().forEach((t) => t.stop());
+          return;
+        }
+
         const roomResp = sessionId
           ? await api.get(`/student/exams/${sessionId}/room`)
           : await api.get("/student/current-room");
 
-        if (!active) return;
+        if (!active) {
+          stream.getTracks().forEach((t) => t.stop());
+          return;
+        }
         const roomData = roomResp.data;
         if (!roomData?.hasRoom) {
+          stream.getTracks().forEach((t) => t.stop());
           setMsg(roomData?.msg || "当前未分配考试房间");
           return;
         }
 
         const examRoomSignalId = currentRoomSignalId(roomData);
         if (!examRoomSignalId) {
+          stream.getTracks().forEach((t) => t.stop());
           setMsg("缺少考场编号，无法建立监考连接");
           return;
         }
         roomSignalIdRef.current = examRoomSignalId;
         frameApiPathRef.current = sessionId ? `/student/exams/${sessionId}/frame` : "/student/current-room/frame";
-
-        const stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: false });
-        if (!active) {
-          stream.getTracks().forEach((t) => t.stop());
-          return;
-        }
+        videoChunkApiPathRef.current = sessionId ? `/student/exams/${sessionId}/video-chunk` : "/student/current-room/video-chunk";
 
         localStreamRef.current = stream;
 
         if (videoRef.current) videoRef.current.srcObject = stream;
+        startVideoRecording(stream);
+        scheduleFrameUpload();
+        if (!heartbeatTimerRef.current) {
+          heartbeatTimerRef.current = window.setInterval(checkExamHeartbeat, 1000);
+        }
+        setMsg("监控已开启，正在连接监考信令...");
 
         const client = createStomp();
         stompRef.current = client;
+        client.onStompError = () => {
+          console.error("[student-exam] stomp protocol error");
+          setMsg("监考信令连接失败，请刷新页面后重试");
+        };
+        client.onWebSocketError = () => {
+          console.error("[student-exam] websocket transport error");
+          setMsg("实时监考连接异常，请检查网络后重试");
+        };
+        client.onWebSocketClose = () => {
+          console.warn("[student-exam] websocket closed");
+          if (!normalExitRef.current) {
+            setMsg("实时监考连接已断开，请刷新页面后重试");
+          }
+        };
 
         client.onConnect = () => {
+          console.info("[student-exam] stomp connected", { examRoomSignalId, studentSenderId });
           client.subscribe(`/topic/exam-room.${examRoomSignalId}`, async (frame) => {
 
             let signal = {};
@@ -264,6 +423,7 @@ export default function ExamRunner() {
             } catch {
               return;
             }
+            console.info("[student-exam] receive signal", signal);
 
             const myId = normalizeId(studentSenderId);
             const senderId = normalizeId(signal.senderId);
@@ -278,6 +438,7 @@ export default function ExamRunner() {
                 const teacherId = Number(signal.senderId);
                 const pc = ensurePeer(teacherId, examRoomSignalId);
                 if (!signal.sdp) return;
+                console.info("[student-exam] received offer", { teacherId });
                 await pc.setRemoteDescription(new RTCSessionDescription(signal.sdp));
                 const answer = await pc.createAnswer();
                 await pc.setLocalDescription(answer);
@@ -292,6 +453,7 @@ export default function ExamRunner() {
                 const teacherId = Number(signal.senderId);
                 const pc = peersRef.current.get(teacherId);
                 if (!pc || !signal.candidate) return;
+                console.info("[student-exam] received candidate", { teacherId });
                 await pc.addIceCandidate(new RTCIceCandidate(signal.candidate));
               }
             } catch {
@@ -305,10 +467,6 @@ export default function ExamRunner() {
             senderRole: "STUDENT",
             senderId: studentSenderId,
           });
-          // x毫秒上传一帧
-          uploadTimerRef.current = window.setInterval(uploadFrameOnce, 200);
-          // 健康检测-是否异常退出等等
-          heartbeatTimerRef.current = window.setInterval(checkExamHeartbeat, 1000);
           setMsg("监控已开启，请开始答题");
         };
 
@@ -320,6 +478,7 @@ export default function ExamRunner() {
 
     return () => {
       active = false;
+      clearExamMediaReady(sessionId);
 
       clearTimers();
 
@@ -352,15 +511,20 @@ export default function ExamRunner() {
                 exitExam("已交卷并退出考试");
               }}
             >
-              提前交卷
+              {tr("提前交卷")}
             </Button>
           </Space>
-          <Badge status="processing" text="AI 实时检测中" />
+          <Space size={12}>
+            <Tag color={micEnabled ? "success" : "warning"}>
+              {micEnabled ? tr("麦克风已开启") : tr("麦克风未开启")}
+            </Tag>
+            <Badge status="processing" text={tr("AI 实时检测中")} />
+          </Space>
         </div>
 
         <video ref={videoRef} playsInline muted autoPlay style={{ width: "100%", borderRadius: 12, background: "#000" }} />
         <Alert title={msg} type="info" showIcon style={{ marginTop: 20 }} />
-        {!sessionId && <Text type="secondary">当前为通用考试入口（无 sessionId）</Text>}
+        {!sessionId && <Text type="secondary">{tr("当前为通用考试入口（无 sessionId）")}</Text>}
       </Card>
     </div>
   );

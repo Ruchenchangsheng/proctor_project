@@ -10,7 +10,7 @@ import org.springframework.web.socket.config.annotation.*;
 @EnableWebSocketMessageBroker
 public class WebSocketConfig implements WebSocketMessageBrokerConfigurer {
 
-    @Value("${app.cors.allowed-origins:http://localhost:5173}")
+    @Value("${app.cors.allowed-origins:http://localhost:*,http://127.0.0.1:*}")
     private String allowedOriginsCsv;
 
     @Override
@@ -18,8 +18,10 @@ public class WebSocketConfig implements WebSocketMessageBrokerConfigurer {
         String[] origins = StringUtils.commaDelimitedListToStringArray(allowedOriginsCsv);
         // Spring 6 推荐使用 allowedOriginPatterns；SockJS 需要显式允许来源
         registry.addEndpoint("/ws")
+                .addInterceptors(new WebSocketHandshakeLoggingInterceptor())
                 .setAllowedOriginPatterns(origins)  // 或 setAllowedOrigins(origins)
-                .withSockJS();
+                .withSockJS()
+                .setSessionCookieNeeded(false);
     }
 
     @Override

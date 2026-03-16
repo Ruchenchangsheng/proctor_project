@@ -19,7 +19,8 @@ RUN pip install --upgrade pip setuptools wheel \
  && pip install --no-cache-dir --prefer-binary -r requirements.txt \
  && python -c "import cv2, fastapi, insightface; print('deps ok')"
 
-COPY main.py .
+COPY main.py runtime_anomaly_support.py ./
+COPY best.ckpt ./
 
 EXPOSE 8000
 CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8000", "--workers", "1"]

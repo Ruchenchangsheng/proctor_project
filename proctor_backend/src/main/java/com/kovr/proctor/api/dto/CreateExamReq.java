@@ -1,6 +1,7 @@
 package com.kovr.proctor.api.dto;
 
 import java.time.LocalDateTime;
+import java.util.List;
 
 public record CreateExamReq(
         String name,
@@ -12,6 +13,7 @@ public record CreateExamReq(
         Integer invigilatorScreenHeight,
         Integer minStudentTileWidth,
         Integer minStudentTileHeight,
-        Integer hardCapPerRoom
+        Integer hardCapPerRoom,
+        List<String> studentEmails
 ) {
 }

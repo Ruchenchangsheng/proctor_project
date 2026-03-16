@@ -123,4 +123,27 @@ public interface ExamSessionMapper extends BaseMapper<ExamSessionEntity> {
             "where id = #{sessionId}"
     })
     int markAbnormalExit(@Param("sessionId") Long sessionId);
+
+    @Select("select status from exam_sessions where id = #{sessionId} limit 1")
+    String selectStatusBySessionId(@Param("sessionId") Long sessionId);
+
+    @Select("""
+            select s.id as sessionId,
+                   er.room_id as roomId,
+                   u.name as studentName,
+                   u.email as studentEmail,
+                   s.status as sessionStatus,
+                   date_format(s.entered_at, '%Y-%m-%d %H:%i:%s') as enteredAt,
+                   date_format(s.finished_at, '%Y-%m-%d %H:%i:%s') as finishedAt,
+                   count(ae.id) as evidenceCount,
+                   sum(case when ae.review_status = 'CONFIRMED_CHEATING' then 1 else 0 end) as confirmedCount
+            from exam_sessions s
+            join users u on u.id = s.student_id
+            left join exam_rooms er on er.id = s.exam_room_id
+            left join anomaly_evidences ae on ae.session_id = s.id
+            where s.exam_id = #{examId}
+            group by s.id, er.room_id, u.name, u.email, s.status, s.entered_at, s.finished_at
+            order by er.room_id asc, u.name asc
+            """)
+    List<Map<String, Object>> selectResultRowsByExamId(@Param("examId") Long examId);
 }

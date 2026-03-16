@@ -2,10 +2,12 @@ import { useEffect, useMemo, useState } from "react";
 import { useLocation, useNavigate, useParams } from "react-router-dom";
 import { api } from "../../apiClient";
 import { Button, Card, Empty, List, Space, Typography } from "antd";
+import useCatalogTranslation from "../../i18n/useCatalogTranslation";
 
 const { Title, Text } = Typography;
 
 export default function TeacherEvidenceStudentsPage() {
+    const { tr } = useCatalogTranslation();
     const { examRoomId } = useParams();
     const location = useLocation();
     const navigate = useNavigate();
@@ -22,8 +24,8 @@ export default function TeacherEvidenceStudentsPage() {
                 setItems(evidenceResp.data?.items || []);
                 setStudents(rosterResp.data?.students || []);
             })
-            .catch((e) => setMsg(e.message || "加载证据失败"));
-    }, [examRoomId]);
+            .catch((e) => setMsg(e.message || tr("加载证据失败")));
+    }, [examRoomId, tr]);
 
     const byStudent = useMemo(() => {
         const map = new Map();
@@ -42,18 +44,19 @@ export default function TeacherEvidenceStudentsPage() {
 
     return (
         <Card className="glass-effect" variant="borderless" style={{ borderRadius: 16, height: "100%", overflowY: "auto" }}>
-            <Space orientation="vertical" size={8} style={{ width: "100%" }}>
-                <Button onClick={() => navigate(-1)} style={{ width: "fit-content" }}>← 返回考试列表</Button>
-                <Title level={5} style={{ margin: 0 }}>考试：{location.state?.examName || "-"}（考场 {location.state?.roomId || examRoomId}）</Title>
+            <Space direction="vertical" size={8} style={{ width: "100%" }}>
+                <Button onClick={() => navigate(-1)} style={{ width: "fit-content" }}>{tr("← 返回考试列表")}</Button>
+                <Title level={5} style={{ margin: 0 }}>{tr("考试")}: {location.state?.examName || "-"} ({tr("考场")} {location.state?.roomId || examRoomId})</Title>
                 {!!msg && <Text type="danger">{msg}</Text>}
             </Space>
 
             <List
-                style={{ marginTop: 12 }}
-                locale={{ emptyText: <Empty description="本场考试暂无作弊证据（全部 0 次）" /> }}
+                style={{ marginTop: 12, }}
+                locale={{ emptyText: <Empty description={tr("本场考试暂无作弊证据（全部 0 次）")} /> }}
                 dataSource={byStudent}
                 renderItem={(row) => (
                     <List.Item
+                        style={{ paddingLeft: "10px" }}
                         actions={[
                             <Button
                                 key="detail"
@@ -66,13 +69,13 @@ export default function TeacherEvidenceStudentsPage() {
                                     },
                                 })}
                             >
-                                查看详情
+                                {tr("查看详情")}
                             </Button>,
                         ]}
                     >
                         <Space style={{ width: "100%", justifyContent: "space-between" }}>
                             <Text>{row.studentName}</Text>
-                            <Text>作弊总次数：{row.count}</Text>
+                            <Text>{tr("作弊总次数")}: {row.count}</Text>
                         </Space>
                     </List.Item>
                 )}

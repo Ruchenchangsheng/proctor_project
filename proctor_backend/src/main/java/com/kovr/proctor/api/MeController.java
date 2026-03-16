@@ -29,6 +29,7 @@ public class MeController {
         m.put("email", u.getEmail());
         m.put("name", u.getName());
         m.put("role", u.getRole());
+        m.put("mustChangePassword", u.isMustChangePassword());
         switch (u.getRole()) {
             case "STUDENT" -> {
                 StudentEntity p = sp.selectById(u.getId());

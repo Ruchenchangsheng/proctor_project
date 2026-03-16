@@ -3,10 +3,13 @@ import { useNavigate } from "react-router-dom";
 import { api } from "../../apiClient";
 import { Table, Card, Typography, Image, Button, Tag, Space, Descriptions, message, Spin } from "antd";
 import { LoginOutlined } from "@ant-design/icons";
+import ChangePasswordButton from "../../components/ChangePasswordButton";
+import useCatalogTranslation from "../../i18n/useCatalogTranslation";
 
 const { Title, Text } = Typography;
 
 export default function StudentHome() {
+  const { tr } = useCatalogTranslation();
   const [p, setP] = useState(null);
   const [photoUrl, setPhotoUrl] = useState(null);
   const [sessions, setSessions] = useState([]);
@@ -28,39 +31,39 @@ export default function StudentHome() {
           }
         } catch (e) { setPhotoUrl(null); }
       } catch (e) {
-        message.error("加载数据失败: " + e.message);
+        message.error(`${tr("加载数据失败:")} ${e.message}`);
       } finally { setLoading(false); }
     })();
   }, []);
 
-  if (loading) return <div style={{ textAlign: 'center', marginTop: '20vh' }}><Spin size="large" tip="加载中..." /></div>;
+  if (loading) return <div style={{ textAlign: 'center', marginTop: '20vh' }}><Spin size="large" tip={tr("加载中...")} /></div>;
 
   const columns = [
-    { title: "考试名称", dataIndex: "examName", key: "examName", render: text => <Text strong>{text}</Text> },
-    { title: "开始时间", dataIndex: "startAt", key: "startAt" },
-    { title: "考场", dataIndex: "roomId", key: "roomId", render: text => <Tag color="blue">{text || "-"}</Tag> },
+    { title: tr("考试名称"), dataIndex: "examName", key: "examName", render: text => <Text strong>{text}</Text> },
+    { title: tr("开始时间"), dataIndex: "startAt", key: "startAt" },
+    { title: tr("考场"), dataIndex: "roomId", key: "roomId", render: text => <Tag color="blue">{text || "-"}</Tag> },
     {
-      title: "状态",
+      title: tr("状态"),
       dataIndex: "phase",
       key: "phase",
 
       render: (phase) => (
         <Tag color={phase === "RUNNING" ? "green" : phase === "COMPLETED" ? "default" : "orange"}>
-          {phase === "RUNNING" ? "进行中" : phase === "COMPLETED" ? "已结束" : "待开始"}
+          {phase === "RUNNING" ? tr("进行中") : phase === "COMPLETED" ? tr("已结束") : tr("待开始")}
         </Tag>
       )
     },
     {
-      title: "参与情况",
+      title: tr("参与情况"),
       key: "participation",
       render: (_, record) => {
         const status = String(record.sessionStatus || "").toUpperCase();
-        if (status === "FINISHED") return <Tag color="green">已完成考试</Tag>;
-        return <Tag>未参加考试</Tag>;
+        if (status === "FINISHED") return <Tag color="green">{tr("已完成考试")}</Tag>;
+        return <Tag>{tr("未参加考试")}</Tag>;
       }
     },
     {
-      title: "操作",
+      title: tr("操作"),
       key: "action",
       render: (_, record) => (
         <Button
@@ -69,7 +72,7 @@ export default function StudentHome() {
           disabled={record.phase === "COMPLETED" || record.phase === "TERMINATED" || record.sessionStatus === "FINISHED" || record.sessionStatus === "CANCELLED"}
           onClick={() => navigate(`/student/exams/${record.sessionId}/verify`)} // 修正路径
         >
-          进入考试
+          {tr("进入考试")}
         </Button>
       )
     },
@@ -78,14 +81,23 @@ export default function StudentHome() {
   return (
     <Space orientation="vertical" size="large" style={{ width: '100%' }}>
       <Card className="glass-effect" variant={false} style={{ borderRadius: 16 }}>
-        <Title level={3}>🎓 考生主页</Title>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 12, marginBottom: 18, flexWrap: "wrap" }}>
+          <Title level={3} style={{ margin: 0 }}>{tr("考生主页")}</Title>
+          <ChangePasswordButton buttonText="修改密码" />
+        </div>
         <div style={{ display: 'flex', gap: 32, flexWrap: 'wrap' }}>
-          <Image width={120} height={160} src={photoUrl} fallback="https://via.placeholder.com/120x160?text=无照片" style={{ borderRadius: 8, objectFit: 'cover' }} />
+          <Image
+            width={120}
+            height={160}
+            src={photoUrl}
+            fallback={`https://via.placeholder.com/120x160?text=${encodeURIComponent(tr("无照片"))}`}
+            style={{ borderRadius: 8, objectFit: 'cover' }}
+          />
           <Descriptions column={{ xs: 1, sm: 2 }} style={{ flex: 1 }}>
-            <Descriptions.Item label="姓名"><Text strong>{p?.name}</Text></Descriptions.Item>
-            <Descriptions.Item label="学校">{p?.schoolName}</Descriptions.Item>
-            <Descriptions.Item label="学院">{p?.departmentName}</Descriptions.Item>
-            <Descriptions.Item label="专业">{p?.majorName || "-"}</Descriptions.Item>
+            <Descriptions.Item label={tr("姓名")}><Text strong>{p?.name}</Text></Descriptions.Item>
+            <Descriptions.Item label={tr("学校")}>{p?.schoolName}</Descriptions.Item>
+            <Descriptions.Item label={tr("学院")}>{p?.departmentName}</Descriptions.Item>
+            <Descriptions.Item label={tr("专业")}>{p?.majorName || "-"}</Descriptions.Item>
           </Descriptions>
         </div>
       </Card>

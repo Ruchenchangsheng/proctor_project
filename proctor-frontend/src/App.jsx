@@ -1,7 +1,11 @@
 import { Routes, Route, Navigate, useLocation } from "react-router-dom";
 import { useAuthStore } from "./store/auth";
 import { useEffect, useState } from "react";
+import { Button, Card, Typography } from "antd";
+import { useTranslation } from "react-i18next";
 import "./index.css";
+import ChangePasswordButton from "./components/ChangePasswordButton.jsx";
+import LanguageSwitcher from "./components/LanguageSwitcher.jsx";
 
 // ===== 学校管理员端 =====
 import SchoolLayout from "./pages/school/layouts/SchoolLayout.jsx";
@@ -10,9 +14,23 @@ import SchoolMajorsPages from "./pages/school/SchoolMajorsPages.jsx";
 import SchoolStudentsPages from "./pages/school/SchoolStudentsPages.jsx";
 import SchoolTeachersPages from "./pages/school/SchoolTeachersPages.jsx";
 import SchoolExamsPages from "./pages/school/SchoolExamsPages.jsx";
+import SchoolExamPolicyPage from "./pages/school/SchoolExamPolicyPage.jsx";
+import SchoolCreateExamPage from "./pages/school/SchoolCreateExamPage.jsx";
+import SchoolEvidenceExamsPage from "./pages/school/SchoolEvidenceExamsPage.jsx";
+import SchoolEvidenceStudentsPage from "./pages/school/SchoolEvidenceStudentsPage.jsx";
+import SchoolEvidenceStudentDetailPage from "./pages/school/SchoolEvidenceStudentDetailPage.jsx";
 
 import Login from "./pages/Login.jsx";
 import Admin from "./pages/Admin.jsx";
+import AdminLayout from "./pages/admin/layouts/AdminLayout.jsx";
+import AdminSchoolOverviewPage from "./pages/admin/AdminSchoolOverviewPage.jsx";
+import AdminSchoolAdminsPage from "./pages/admin/AdminSchoolAdminsPage.jsx";
+import AdminExamsPage from "./pages/admin/AdminExamsPage.jsx";
+import AdminUsersPage from "./pages/admin/AdminUsersPage.jsx";
+import AdminEvidencePage from "./pages/admin/AdminEvidencePage.jsx";
+import AdminSettingsPage from "./pages/admin/AdminSettingsPage.jsx";
+import AdminAuditLogsPage from "./pages/admin/AdminAuditLogsPage.jsx";
+import AdminNotificationsPage from "./pages/admin/AdminNotificationsPage.jsx";
 
 import TeacherMonitor from "./pages/teacher/TeacherMonitor.jsx";
 import TeacherLayout from "./pages/teacher/layouts/TeacherLayouts.jsx";
@@ -29,9 +47,13 @@ import FaceVerify from "./pages/student/FaceVerify.jsx";
 import ExamRunner from "./pages/student/ExamRunner.jsx";
 import StudentExamVerify from "./pages/student/StudentExamVerify.jsx";
 
+const { Title, Text } = Typography;
+
 function Guard({ children, allow }) {
+  const { t } = useTranslation();
   const token = useAuthStore((s) => s.token);
   const me = useAuthStore((s) => s.me);
+  const logout = useAuthStore((s) => s.logout);
 
   const bootstrapAfterLogin = useAuthStore((s) => s.bootstrapAfterLogin);
   const [loadingMe, setLoadingMe] = useState(false);
@@ -47,7 +69,38 @@ function Guard({ children, allow }) {
   if (!token) return <Navigate to="/login" replace />;
 
   // 给加载提示也加上玻璃效果
-  if (!me || loadingMe) return <div className="glass-effect" style={{ padding: 20, margin: '20vh auto', width: 'fit-content', borderRadius: '12px' }}>正在恢复登录信息...</div>;
+  if (!me || loadingMe) {
+    return (
+      <div className="glass-effect" style={{ padding: 20, margin: "20vh auto", width: "fit-content", borderRadius: "12px" }}>
+        {t("正在恢复登录信息...")}
+      </div>
+    );
+  }
+
+  if (me?.mustChangePassword) {
+    return (
+      <div style={{ maxWidth: 560, margin: "12vh auto", width: "100%", padding: "0 20px" }}>
+        <Card className="glass-effect" variant={false} style={{ borderRadius: 18, padding: "16px 8px" }}>
+          <div className="app-login-toolbar" style={{ marginBottom: 12 }}>
+            <LanguageSwitcher compact />
+          </div>
+          <Title level={3} style={{ marginTop: 0 }}>{t("请先修改密码")}</Title>
+          <Text type="secondary" style={{ display: "block", marginBottom: 20 }}>
+            {t("当前账号处于首次登录或密码重置后的安全状态，修改密码后才能继续访问系统功能。")}
+          </Text>
+          <ChangePasswordButton
+            hideButton
+            defaultOpen
+            modalTitle={t("请先修改密码")}
+            onSuccess={() => {}}
+          />
+          <Button danger style={{ marginTop: 12 }} onClick={() => { logout(); location.replace("/login"); }}>
+            {t("退出登录")}
+          </Button>
+        </Card>
+      </div>
+    );
+  }
 
   if (allow && !allow.includes(me.role)) return <Navigate to="/login" replace />;
   return children;
@@ -62,16 +115,42 @@ export default function App() {
       <Routes>
         <Route path="/login" element={<Login />} />
 
-        <Route path="/admin" element={<Guard allow={["ADMIN"]}><Admin /></Guard>} />
+        <Route path="/admin" element={<Guard allow={["ADMIN"]}><AdminLayout /></Guard>}>
+          <Route index element={<Navigate to="school-overview" replace />} />
+          <Route path="school-overview" element={<AdminSchoolOverviewPage />} />
+          <Route path="exams" element={<AdminExamsPage />} />
+          <Route path="users" element={<AdminUsersPage />} />
+          <Route path="evidence" element={<AdminEvidencePage />} />
+          <Route path="schools/list" element={<Admin mode="list" />} />
+          <Route path="schools/add" element={<Admin mode="add" />} />
+          <Route path="school-admins" element={<AdminSchoolAdminsPage />} />
+          <Route path="settings" element={<AdminSettingsPage />} />
+          <Route path="audit-logs" element={<AdminAuditLogsPage />} />
+          <Route path="notifications" element={<AdminNotificationsPage />} />
+        </Route>
 
         {/* 把子路由嵌套到 /school 下面，通过 <Outlet/> 渲染 */}
         <Route path="/school" element={<Guard allow={["SCHOOL_ADMIN"]}><SchoolLayout /></Guard>}>
-          <Route index element={<Navigate to="school_departments_pages" replace />} />
-          <Route path="school_departments_pages" element={<SchoolDepartmentsPages />} />
-          <Route path="school_majors_pages" element={<SchoolMajorsPages />} />
-          <Route path="school_teachers_pages" element={<SchoolTeachersPages />} />
-          <Route path="school_students_pages" element={<SchoolStudentsPages />} />
-          <Route path="school_exams_pages" element={<SchoolExamsPages />} />
+          <Route index element={<Navigate to="departments/list" replace />} />
+          <Route path="departments/list" element={<SchoolDepartmentsPages mode="list" />} />
+          <Route path="departments/add" element={<SchoolDepartmentsPages mode="add" />} />
+          <Route path="majors/list" element={<SchoolMajorsPages mode="list" />} />
+          <Route path="majors/add" element={<SchoolMajorsPages mode="add" />} />
+          <Route path="teachers/list" element={<SchoolTeachersPages mode="list" />} />
+          <Route path="teachers/add" element={<SchoolTeachersPages mode="add" />} />
+          <Route path="students/list" element={<SchoolStudentsPages mode="list" />} />
+          <Route path="students/add" element={<SchoolStudentsPages mode="add" />} />
+          <Route path="school_departments_pages" element={<Navigate to="/school/departments/list" replace />} />
+          <Route path="school_majors_pages" element={<Navigate to="/school/majors/list" replace />} />
+          <Route path="school_teachers_pages" element={<Navigate to="/school/teachers/list" replace />} />
+          <Route path="school_students_pages" element={<Navigate to="/school/students/list" replace />} />
+          <Route path="exam_anomaly_settings" element={<SchoolExamPolicyPage />} />
+          <Route path="exam_create" element={<SchoolCreateExamPage />} />
+          <Route path="exam_overview" element={<SchoolExamsPages />} />
+          <Route path="evidence/exams" element={<SchoolEvidenceExamsPage />} />
+          <Route path="evidence/exams/:examId/students" element={<SchoolEvidenceStudentsPage />} />
+          <Route path="evidence/exams/:examId/students/:studentId" element={<SchoolEvidenceStudentDetailPage />} />
+          <Route path="school_exams_pages" element={<Navigate to="/school/exam_overview" replace />} />
         </Route>
 
         <Route path="/teacher" element={<Guard allow={["TEACHER"]}><TeacherLayout /></Guard>}>

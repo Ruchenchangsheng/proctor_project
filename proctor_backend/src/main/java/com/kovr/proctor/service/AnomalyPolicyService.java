@@ -22,9 +22,6 @@ public class AnomalyPolicyService {
     @Value("${anomaly.identity-verify-interval-sec:8}")
     private long defaultIdentityVerifyIntervalSec;
 
-    @Value("${anomaly.evidence.default-media-type:VIDEO}")
-    private String defaultEvidenceMediaType;
-
     @Value("${anomaly.max-reconnect-count:3}")
     private int defaultMaxReconnectCount;
 
@@ -35,18 +32,18 @@ public class AnomalyPolicyService {
         return policyBySchool.getOrDefault(schoolId, defaultPolicy());
     }
 
-    public Policy updatePolicy(Long schoolId, Double warningThreshold, Double severeThreshold, Long sampleIntervalMs, Long identityVerifyIntervalSec, String evidenceMediaType, Integer maxReconnectCount) {
+    public Policy updatePolicy(Long schoolId, Double warningThreshold, Double severeThreshold, Long sampleIntervalMs, Long identityVerifyIntervalSec,  Integer maxReconnectCount) {
         Policy current = getPolicy(schoolId);
         double nextWarning = normalize(warningThreshold == null ? current.warningThreshold() : warningThreshold);
         double nextSevere = normalize(severeThreshold == null ? current.severeThreshold() : severeThreshold);
         long nextSampleMs = normalizeMs(sampleIntervalMs == null ? current.sampleIntervalMs() : sampleIntervalMs);
         long nextIdentitySec = normalizeSec(identityVerifyIntervalSec == null ? current.identityVerifyIntervalSec() : identityVerifyIntervalSec);
-        String nextMediaType = normalizeMediaType(evidenceMediaType == null ? current.evidenceMediaType() : evidenceMediaType);
+
         int nextMaxReconnect = normalizeReconnectCount(maxReconnectCount == null ? current.maxReconnectCount() : maxReconnectCount);
         if (nextSevere < nextWarning) {
             nextSevere = nextWarning;
         }
-        Policy next = new Policy(nextWarning, nextSevere, nextSampleMs, nextIdentitySec, nextMediaType, nextMaxReconnect);
+        Policy next = new Policy(nextWarning, nextSevere, nextSampleMs, nextIdentitySec, nextMaxReconnect);
         if (schoolId != null) {
             policyBySchool.put(schoolId, next);
         }
@@ -59,7 +56,6 @@ public class AnomalyPolicyService {
                 "severeThreshold", p.severeThreshold(),
                 "sampleIntervalMs", p.sampleIntervalMs(),
                 "identityVerifyIntervalSec", p.identityVerifyIntervalSec(),
-                "evidenceMediaType", p.evidenceMediaType(),
                 "maxReconnectCount", p.maxReconnectCount()
         );
     }
@@ -68,27 +64,19 @@ public class AnomalyPolicyService {
         double warning = normalize(defaultWarningThreshold);
         double severe = normalize(defaultSevereThreshold);
         if (severe < warning) severe = warning;
-        return new Policy(warning, severe, normalizeMs(defaultSampleIntervalMs), normalizeSec(defaultIdentityVerifyIntervalSec), normalizeMediaType(defaultEvidenceMediaType),
-                normalizeReconnectCount(defaultMaxReconnectCount));
+        return new Policy(warning, severe, normalizeMs(defaultSampleIntervalMs), normalizeSec(defaultIdentityVerifyIntervalSec), normalizeReconnectCount(defaultMaxReconnectCount));
     }
 
 
     private long normalizeMs(long v) {
-        if (v < 200L) return 200L;
-        if (v > 10000L) return 10000L;
-        return v;
+        // 当前行为模型按 30fps 训练，线上采样固定锁定为 33ms，避免学校自行修改后破坏时序口径。
+        return 33L;
     }
 
     private long normalizeSec(long v) {
         if (v < 2L) return 2L;
         if (v > 120L) return 120L;
         return v;
-    }
-
-    private String normalizeMediaType(String value) {
-        if (value == null) return "VIDEO";
-        String v = value.trim().toUpperCase();
-        return "GIF".equals(v) ? "GIF" : "VIDEO";
     }
 
     private int normalizeReconnectCount(int value) {
@@ -104,5 +92,5 @@ public class AnomalyPolicyService {
         return v;
     }
 
-    public record Policy(double warningThreshold, double severeThreshold, long sampleIntervalMs, long identityVerifyIntervalSec, String evidenceMediaType, int maxReconnectCount) {}
+    public record Policy(double warningThreshold, double severeThreshold, long sampleIntervalMs, long identityVerifyIntervalSec, int maxReconnectCount) {}
 }

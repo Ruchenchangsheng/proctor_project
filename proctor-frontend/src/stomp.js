@@ -5,16 +5,23 @@ import { useAuthStore } from "./store/auth";
 
 export function createStomp() {
   const token = useAuthStore.getState().token;
+  const sockJsUrl = typeof window !== "undefined"
+    ? `${window.location.protocol}//${window.location.hostname}:8080/ws`
+    : undefined;
 
-  // 使用 SockJS 握手（后端若是原生 ws，可改为 brokerURL 直连）
-const client = new Client({
-     // 走相对路径，由 Vite 代理到 8080
-     webSocketFactory: () => new SockJS("/ws"),
-     // 如果后端是原生 ws 而不是 SockJS，用这一行替换上面那行：
-     // brokerURL: (location.origin.replace(/^http/, "ws")) + "/ws",
-     connectHeaders: token ? { Authorization: `Bearer ${token}` } : {},
-     reconnectDelay: 5000,
-     debug: () => {}
-   });
-   return client;
+  return new Client({
+    // 固定走后端 SockJS 直连，避免开发代理与原生 ws 端点差异造成握手失败。
+    webSocketFactory: () => {
+      const endpoint = sockJsUrl || "http://localhost:8080/ws";
+      console.info("[stomp] create SockJS client", { endpoint });
+      return new SockJS(endpoint, undefined, {
+        transports: ["websocket", "xhr-streaming", "xhr-polling"],
+      });
+    },
+    connectHeaders: token ? { Authorization: `Bearer ${token}` } : {},
+    reconnectDelay: 5000,
+    heartbeatIncoming: 10000,
+    heartbeatOutgoing: 10000,
+    debug: (line) => console.info("[stomp]", line),
+  });
 }

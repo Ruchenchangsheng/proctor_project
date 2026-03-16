@@ -24,6 +24,7 @@ import org.springframework.security.web.authentication.UsernamePasswordAuthentic
 @RequiredArgsConstructor
 public class SecurityConfig {
     private final JwtAuthFilter jwt;
+    private final ForcePasswordChangeFilter forcePasswordChangeFilter;
 
     @Bean
     SecurityFilterChain chain(HttpSecurity http) throws Exception {
@@ -32,7 +33,7 @@ public class SecurityConfig {
                 .sessionManagement(s -> s.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
                 .authorizeHttpRequests(auth -> auth
                         .requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()
-                        .requestMatchers("/api/auth/**", "/ws/**", "/v3/api-docs/**", "/swagger-ui/**", "/error").permitAll()
+                        .requestMatchers("/api/auth/**", "/ws", "/ws/**", "/v3/api-docs/**", "/swagger-ui/**", "/error").permitAll()
                         .anyRequest().authenticated())
                 .exceptionHandling(ex -> ex
                         .authenticationEntryPoint((request, response, authException) -> {
@@ -51,7 +52,8 @@ public class SecurityConfig {
                             response.setContentType(MediaType.APPLICATION_JSON_VALUE);
                             response.getWriter().write("{\"error\":\"Forbidden\",\"message\":\"无权限访问\",\"code\":\"FORBIDDEN\"}");
                         }))
-                .addFilterBefore(jwt, UsernamePasswordAuthenticationFilter.class);
+                .addFilterBefore(jwt, UsernamePasswordAuthenticationFilter.class)
+                .addFilterAfter(forcePasswordChangeFilter, JwtAuthFilter.class);
         return http.build();
     }
 

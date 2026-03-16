@@ -2,6 +2,8 @@ import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { api } from "../../apiClient";
 import { Button, Card, Empty, List, Space, Tag, Typography } from "antd";
+import { useTranslation } from "react-i18next";
+import { translateSourceText } from "../../i18n/catalog";
 
 const { Text, Title } = Typography;
 
@@ -13,9 +15,11 @@ const phaseMeta = {
 };
 
 export default function TeacherTasksPage({ phase = "ALL" }) {
+    const { i18n } = useTranslation();
     const [tasks, setTasks] = useState([]);
     const [msg, setMsg] = useState("");
     const navigate = useNavigate();
+    const translate = (text) => translateSourceText(text, i18n.language);
 
     useEffect(() => {
         const params = phase === "ALL" ? {} : { phase };
@@ -28,10 +32,10 @@ export default function TeacherTasksPage({ phase = "ALL" }) {
 
     return (
         <Card className="glass-effect" variant="borderless" style={{ borderRadius: 16, height: "100%", overflowY: "auto" }}>
-            <Title level={5} style={{ marginTop: 0 }}>{title}</Title>
+            <Title level={5} style={{ marginTop: 0 }}>{translate(title)}</Title>
             {!!msg && <Text type="danger">{msg}</Text>}
             <List
-                locale={{ emptyText: <Empty description="当前筛选下暂无任务" /> }}
+                locale={{ emptyText: <Empty description={translate("当前筛选下暂无任务")} /> }}
                 dataSource={tasks}
                 renderItem={(item) => {
                     const p = item.phase || "PENDING";
@@ -40,22 +44,23 @@ export default function TeacherTasksPage({ phase = "ALL" }) {
                     const isCompleted = p === "COMPLETED";
                     return (
                         <List.Item
+                            style={{ paddingLeft: "10px" }}
                             actions={[
                                 canMonitor ? (
-                                    <Button type="primary" key="monitor" onClick={() => navigate(`/teacher/monitor/${item.examRoomId}`, { state: { roomId: item.roomId, examName: item.examName } })}>进入监考</Button>
+                                    <Button type="primary" key="monitor" onClick={() => navigate(`/teacher/monitor/${item.examRoomId}`, { state: { roomId: item.roomId, examName: item.examName } })}>{translate("进入监考")}</Button>
                                 ) : null,
                                 isCompleted ? (
-                                    <Button key="detail" onClick={() => navigate(`/teacher/tasks/${item.examRoomId}/detail`, { state: item })}>查看详情</Button>
+                                    <Button key="detail" onClick={() => navigate(`/teacher/tasks/${item.examRoomId}/detail`, { state: item })}>{translate("查看详情")}</Button>
                                 ) : null,
                             ].filter(Boolean)}
                         >
                             <List.Item.Meta
-                                title={<Space><span>{item.examName}</span><Tag color={meta.color}>{meta.text}</Tag></Space>}
+                                title={<Space><span>{item.examName}</span><Tag color={meta.color}>{translate(meta.text)}</Tag></Space>}
                                 description={(
                                     <Space orientation="vertical" size={2}>
-                                        <Text>时间：{item.startAt || "-"} ~ {item.endAt || "-"}</Text>
-                                        <Text>学院/专业：{item.departmentName || "-"} / {item.majorName || "-"}</Text>
-                                        <Text>考场：{item.roomId}（容量 {item.capacity}，当前 {item.studentCount} 人）</Text>
+                                        <Text>{translate("时间")}: {item.startAt || "-"} - {item.endAt || "-"}</Text>
+                                        <Text>{translate("学院/专业")}: {item.departmentName || "-"} / {item.majorName || "-"}</Text>
+                                        <Text>{translate("考场")}: {item.roomId} ({translate("容量")} {item.capacity}, {translate("当前")} {item.studentCount} {translate("人")})</Text>
                                     </Space>
                                 )}
                             />

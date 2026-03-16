@@ -18,6 +18,7 @@ public class UserDetailsImpl implements UserDetails {
     private String name;
     private String role;
     private boolean enabled;
+    private boolean mustChangePassword;
 
     @Override
     public Collection<? extends GrantedAuthority> getAuthorities() {

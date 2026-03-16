@@ -1,8 +1,12 @@
 import { Outlet, useLocation, useNavigate } from "react-router-dom";
-import { Button, Card, Typography } from "antd";
+import { Button, Card, Space, Typography } from "antd";
 import { useEffect, useState } from "react";
 import { api } from "../../../apiClient";
 import { useAuthStore } from "../../../store/auth";
+import AppSideMenu from "../../../components/AppSideMenu";
+import ChangePasswordButton from "../../../components/ChangePasswordButton";
+import LanguageSwitcher from "../../../components/LanguageSwitcher.jsx";
+import useCatalogTranslation from "../../../i18n/useCatalogTranslation.js";
 
 const { Title, Text } = Typography;
 
@@ -29,40 +33,33 @@ export default function TeacherLayout() {
     const navigate = useNavigate();
     const logout = useAuthStore((s) => s.logout);
     const [profile, setProfile] = useState(null);
+    const { tr } = useCatalogTranslation();
 
     useEffect(() => {
         api.get("/teacher/profile").then((r) => setProfile(r.data)).catch(() => setProfile(null));
     }, []);
 
+    const headerMeta = `${tr("姓名")}: ${profile?.name || "-"} | ${tr("学校")}: ${profile?.schoolName || "-"} | ${tr("学院")}: ${profile?.departmentName || "-"}`;
+
     return (
-        <div style={{ maxWidth: 1300, margin: "0 auto", display: "grid", gap: 12, height: "10%" }}>
+        <div className="app-dashboard-layout" style={{ width: "100%", maxWidth: "none", margin: "0 auto" }}>
             <Card className="glass-effect" variant="borderless" style={{ borderRadius: 16 }}>
-                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 12 }}>
+                <div className="app-shell-header-row">
                     <div>
-                        <Title level={4} style={{ margin: 0 }}>监考老师主页</Title>
-                        <Text>姓名：{profile?.name || "-"} ｜ 学校：{profile?.schoolName || "-"} ｜ 学院：{profile?.departmentName || "-"}</Text>
+                        <Title level={4} style={{ margin: 0 }}>{tr("监考老师主页")}</Title>
+                        <Text className="app-shell-header-meta">{headerMeta}</Text>
                     </div>
-                    <Button danger onClick={() => { logout(); navigate('/login', { replace: true }); }}>退出登录</Button>
+                    <Space wrap className="app-shell-header-actions">
+                        <LanguageSwitcher compact />
+                        <ChangePasswordButton buttonText="修改密码" />
+                        <Button danger onClick={() => { logout(); navigate('/login', { replace: true }); }}>{tr("退出登录")}</Button>
+                    </Space>
                 </div>
             </Card>
 
-            <div style={{ display: "grid", gridTemplateColumns: "260px 1fr", gap: 12, minHeight: 0 }}>
-                <Card className="glass-effect" variant="borderless" style={{ borderRadius: 16, overflowY: "auto" }}>
-                    {navGroups.map((group) => (
-                        <div key={group.key} style={{ marginBottom: 12 }}>
-                            <div style={{ fontWeight: 700, marginBottom: 6 }}>{group.label}</div>
-                            <div style={{ display: "grid", gap: 6 }}>
-                                {group.children.map((child) => {
-                                    const active = location.pathname.startsWith(child.path);
-                                    return (
-                                        <Button key={child.key} type={active ? "primary" : "default"} onClick={() => navigate(child.path)}>
-                                            {child.label}
-                                        </Button>
-                                    );
-                                })}
-                            </div>
-                        </div>
-                    ))}
+            <div className="app-shell-body">
+                <Card className="glass-effect app-side-shell" variant="borderless" style={{ borderRadius: 20, overflowY: "auto" }}>
+                    <AppSideMenu groups={navGroups} pathname={location.pathname} onNavigate={navigate} />
                 </Card>
 
                 <div style={{ minHeight: 0 }}>

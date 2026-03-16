@@ -17,6 +17,9 @@ public class UserEntity {
     private String name;
     private String role;
     private Integer enabled;
+    private Integer mustChangePassword;
+    private Integer failedLoginAttempts;
+    private LocalDateTime lockedUntil;
     private LocalDateTime createdAt;
     private LocalDateTime updatedAt;
 }

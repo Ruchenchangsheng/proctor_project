@@ -27,7 +27,7 @@ import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 
 @RestController
-@RequestMapping("/api/student")
+@RequestMapping(value = "/api/student", produces = MediaType.APPLICATION_JSON_VALUE)
 @RequiredArgsConstructor
 public class StudentController {
     private final StudentMapper sp;
@@ -233,7 +233,8 @@ public class StudentController {
     @PostMapping(value = "/current-room/frame", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
     @PreAuthorize("hasRole('STUDENT')")
     public Map<String, Object> uploadFrame(@AuthenticationPrincipal UserDetailsImpl u,
-                                           @RequestPart("photo") MultipartFile photo) throws Exception {
+                                           @RequestPart("photo") MultipartFile photo,
+                                           @RequestParam(value = "capturedAtMs", required = false) Long capturedAtMs) throws Exception {
         Map<String, Object> session;
         try {
             session = examSessionMapper.selectCurrentSessionByStudentId(u.getId());
@@ -257,9 +258,9 @@ public class StudentController {
         Long roomId = roomIdNumber.longValue();
         byte[] bytes = photo.getBytes();
         String mime = Optional.ofNullable(photo.getContentType()).orElse("image/jpeg");
+        long tsMs = normalizeCaptureTs(capturedAtMs);
         examLiveStateService.putFrame(roomId, u.getId(), mime, bytes);
-        anomalyEvidenceService.bufferFrame(roomId, u.getId(), mime, bytes, System.currentTimeMillis());
-        long tsMs = System.currentTimeMillis();
+        anomalyEvidenceService.bufferFrame(roomId, u.getId(), mime, bytes, tsMs);
 
         var policy = anomalyPolicyService.getPolicy(loadSchoolId(u.getId()));
         var enrichedEvents = processFrame(roomId, u.getId(), bytes, mime, tsMs, policy);
@@ -284,7 +285,8 @@ public class StudentController {
     @PreAuthorize("hasRole('STUDENT')")
     public Map<String, Object> uploadFrameBySession(@AuthenticationPrincipal UserDetailsImpl u,
                                                     @PathVariable Long sessionId,
-                                                    @RequestPart("photo") MultipartFile photo) throws Exception {
+                                                    @RequestPart("photo") MultipartFile photo,
+                                                    @RequestParam(value = "capturedAtMs", required = false) Long capturedAtMs) throws Exception {
         Map<String, Object> session;
         try {
             session = examSessionMapper.selectSessionRoomByStudentAndSessionId(u.getId(), sessionId);
@@ -308,9 +310,9 @@ public class StudentController {
         Long roomId = roomIdNumber.longValue();
         byte[] bytes = photo.getBytes();
         String mime = Optional.ofNullable(photo.getContentType()).orElse("image/jpeg");
+        long tsMs = normalizeCaptureTs(capturedAtMs);
         examLiveStateService.putFrame(roomId, u.getId(), mime, bytes);
-        anomalyEvidenceService.bufferFrame(roomId, u.getId(), mime, bytes, System.currentTimeMillis());
-        long tsMs = System.currentTimeMillis();
+        anomalyEvidenceService.bufferFrame(roomId, u.getId(), mime, bytes, tsMs);
 
         var policy = anomalyPolicyService.getPolicy(loadSchoolId(u.getId()));
         var enrichedEvents = processFrame(roomId, u.getId(), bytes, mime, tsMs, policy);
@@ -327,6 +329,94 @@ public class StudentController {
             pushAnomalyUpdate(roomId, u.getId(), enrichedEvents, evidenceList, policy);
         }
         return Map.of("ok", true, "examRoomId", roomId, "size", bytes.length, "events", enrichedEvents);
+    }
+
+    private long normalizeCaptureTs(Long capturedAtMs) {
+        long now = System.currentTimeMillis();
+        if (capturedAtMs == null) {
+            return now;
+        }
+        long minAllowed = now - 60_000L;
+        long maxAllowed = now + 5_000L;
+        if (capturedAtMs < minAllowed || capturedAtMs > maxAllowed) {
+            return now;
+        }
+        return capturedAtMs;
+    }
+
+
+    @PostMapping(value = "/current-room/video-chunk", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+    @PreAuthorize("hasRole('STUDENT')")
+    public Map<String, Object> uploadVideoChunk(@AuthenticationPrincipal UserDetailsImpl u,
+                                                @RequestPart("video") MultipartFile video,
+                                                @RequestParam(value = "chunkStartAtMs", required = false) Long chunkStartAtMs,
+                                                @RequestParam(value = "chunkEndAtMs", required = false) Long chunkEndAtMs) throws Exception {
+        Map<String, Object> session;
+        try {
+            session = examSessionMapper.selectCurrentSessionByStudentId(u.getId());
+        } catch (Exception ex) {
+            return Map.of("ok", false, "msg", "查询考试房间失败，请稍后重试");
+        }
+        return handleVideoChunkUpload(u, session, video, chunkStartAtMs, chunkEndAtMs);
+    }
+
+    @PostMapping(value = "/exams/{sessionId}/video-chunk", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+    @PreAuthorize("hasRole('STUDENT')")
+    public Map<String, Object> uploadVideoChunkBySession(@AuthenticationPrincipal UserDetailsImpl u,
+                                                         @PathVariable Long sessionId,
+                                                         @RequestPart("video") MultipartFile video,
+                                                         @RequestParam(value = "chunkStartAtMs", required = false) Long chunkStartAtMs,
+                                                         @RequestParam(value = "chunkEndAtMs", required = false) Long chunkEndAtMs) throws Exception {
+        Map<String, Object> session;
+        try {
+            session = examSessionMapper.selectSessionRoomByStudentAndSessionId(u.getId(), sessionId);
+        } catch (Exception ex) {
+            return Map.of("ok", false, "msg", "查询考试房间失败，请稍后重试");
+        }
+        return handleVideoChunkUpload(u, session, video, chunkStartAtMs, chunkEndAtMs);
+    }
+
+    private Map<String, Object> handleVideoChunkUpload(UserDetailsImpl u,
+                                                       Map<String, Object> session,
+                                                       MultipartFile video,
+                                                       Long chunkStartAtMs,
+                                                       Long chunkEndAtMs) throws Exception {
+        if (session == null || !(session.get("examRoomId") instanceof Number roomIdNumber)) {
+            return Map.of("ok", false, "msg", "当前未分配考试房间");
+        }
+        if (!isSessionRunning(session)) {
+            autoFinishSession(session,"TIME_UP");
+            return Map.of("ok", false, "ended", true, "autoSubmitted", true, "msg", "考试已结束，系统已自动交卷并退出");
+        }
+        if (!("FINISHED".equalsIgnoreCase(String.valueOf(session.getOrDefault("sessionStatus", "")))
+                || "CANCELLED".equalsIgnoreCase(String.valueOf(session.getOrDefault("sessionStatus", ""))))) {
+            Object sid = session.get("sessionId");
+            if (sid instanceof Number n) {
+                markSessionEntered(n.longValue());
+            }
+        }
+        byte[] bytes = video.getBytes();
+        String mime = Optional.ofNullable(video.getContentType()).orElse("video/webm");
+        long endTs = normalizeCaptureTs(chunkEndAtMs);
+        long startTs = chunkStartAtMs == null ? Math.max(0L, endTs - 1000L) : normalizeCaptureTs(chunkStartAtMs);
+        if (startTs > endTs) {
+            startTs = endTs;
+        }
+        Long roomId = roomIdNumber.longValue();
+        anomalyEvidenceService.bufferVideoChunk(roomId, u.getId(), toLong(session.get("sessionId"), null), loadSchoolId(u.getId()), mime, bytes, startTs, endTs);
+        return Map.of("ok", true, "examRoomId", roomId, "size", bytes.length);
+    }
+
+
+    private Long toLong(Object value, Long defaultValue) {
+        if (value instanceof Number n) {
+            return n.longValue();
+        }
+        try {
+            return Long.parseLong(String.valueOf(value));
+        } catch (Exception ignore) {
+            return defaultValue;
+        }
     }
 
     @GetMapping("/exams/{sessionId}/heartbeat")
@@ -575,12 +665,20 @@ public class StudentController {
         if (label == null) return 9999;
         return switch (label) {
             case "identity_face_missing" -> 1001;
+            case "face_not_visible" -> 1001;
             case "identity_not_match" -> 1002;
             case "multiple_face_detected" -> 1003;
+            case "multi_face" -> 1003;
             case "identity_check_error" -> 1099;
             case "abnormal_posture" -> 2001;
             case "look_left_right", "abnormal_look_around" -> 2002;
+            case "look_left", "look_right", "look_offscreen" -> 2002;
             case "head_down", "abnormal_head_down" -> 2003;
+            case "look_down" -> 2003;
+            case "talking" -> 2004;
+            case "other_person_present" -> 2005;
+            case "other_limb_present" -> 2006;
+            case "leave_seat" -> 2007;
             default -> 9000;
         };
     }

@@ -67,6 +67,8 @@ public class SchoolService {
         admin.setName(adminName);
         admin.setRole("SCHOOL_ADMIN");
         admin.setEnabled(1);
+        admin.setMustChangePassword(1);
+        admin.setFailedLoginAttempts(0);
         admin.setPassword(passwordEncoder.encode(rawPwd));
         userMapper.insert(admin);
 

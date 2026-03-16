@@ -13,7 +13,7 @@ import java.util.List;
 @Configuration
 public class CorsConfig {
 
-    @Value("${app.cors.allowed-origins:http://localhost:5173}")
+    @Value("${app.cors.allowed-origins:http://localhost:*,http://127.0.0.1:*}")
     private String allowedOriginsCsv;
 
     @Bean
@@ -21,12 +21,12 @@ public class CorsConfig {
         List<String> origins = Arrays.stream(allowedOriginsCsv.split(",")).map(String::trim).filter(s -> !s.isEmpty()).toList();
 
         CorsConfiguration cfg = new CorsConfiguration();
-        cfg.setAllowedOrigins(origins);
+        cfg.setAllowedOriginPatterns(origins);
         cfg.setAllowedMethods(List.of("GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"));
-        cfg.setAllowedHeaders(List.of("Authorization", "Content-Type", "X-Requested-With"));
+        cfg.setAllowedHeaders(List.of("*"));
         cfg.setExposedHeaders(List.of("Authorization"));
-        // 你用的是 Bearer Token，不走 cookie，建议保持 false；若以后用 cookie 再改成 true
-        cfg.setAllowCredentials(false);
+        // SockJS 的 /ws/info 与后续 xhr transport 会带 credentials，必须显式允许。
+        cfg.setAllowCredentials(true);
         cfg.setMaxAge(3600L); // 预检缓存 1 小时
 
         UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();

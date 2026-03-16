@@ -1,15 +1,23 @@
 package com.kovr.proctor.service;
 
+import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
+import com.baomidou.mybatisplus.core.conditions.update.LambdaUpdateWrapper;
 import com.kovr.proctor.api.dto.CreateExamReq;
+import com.kovr.proctor.api.dto.UpdateExamReq;
 import com.kovr.proctor.common.BusinessException;
+import com.kovr.proctor.domain.entity.AnomalyClipTaskEntity;
 import com.kovr.proctor.domain.entity.ExamEntity;
 import com.kovr.proctor.domain.entity.ExamRoomEnrollmentEntity;
 import com.kovr.proctor.domain.entity.ExamRoomEntity;
 import com.kovr.proctor.domain.entity.ExamSessionEntity;
+import com.kovr.proctor.infra.mapper.AnomalyClipTaskMapper;
+import com.kovr.proctor.infra.mapper.AnomalyEvidenceMapper;
+import com.kovr.proctor.infra.mapper.AnomalySegmentLinkMapper;
 import com.kovr.proctor.infra.mapper.ExamMapper;
 import com.kovr.proctor.infra.mapper.ExamRoomEnrollmentMapper;
 import com.kovr.proctor.infra.mapper.ExamRoomMapper;
 import com.kovr.proctor.infra.mapper.ExamSessionMapper;
+import com.kovr.proctor.infra.mapper.RecordingSegmentMapper;
 import com.kovr.proctor.infra.mapper.StudentMapper;
 import com.kovr.proctor.infra.mapper.TeacherMapper;
 import lombok.RequiredArgsConstructor;
@@ -20,6 +28,7 @@ import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 
 @Service
 @RequiredArgsConstructor
@@ -30,9 +39,13 @@ public class ExamArrangeService {
     private final ExamSessionMapper sessionMapper;
     private final StudentMapper studentMapper;
     private final TeacherMapper teacherMapper;
+    private final RecordingSegmentMapper recordingSegmentMapper;
+    private final AnomalyEvidenceMapper anomalyEvidenceMapper;
+    private final AnomalyClipTaskMapper anomalyClipTaskMapper;
+    private final AnomalySegmentLinkMapper anomalySegmentLinkMapper;
 
-    public List<Map<String, Object>> listExams(Long schoolId, Long departmentId, Long majorId) {
-        return examMapper.selectExamsByScope(schoolId, departmentId, majorId);
+    public List<Map<String, Object>> listExams(Long schoolId, Long departmentId, Long majorId, String keyword, String status) {
+        return examMapper.selectExamsByScope(schoolId, departmentId, majorId, normalizeKeyword(keyword), normalizeStatus(status));
     }
 
     public List<Map<String, Object>> listExamRooms(Long examId) {
@@ -50,7 +63,7 @@ public class ExamArrangeService {
     public Map<String, Object> createExam(Long schoolId, Long creatorId, CreateExamReq req) {
         validateReq(req);
 
-        List<Long> studentIds = studentMapper.selectStudentIdsByScope(schoolId, req.departmentId(), req.majorId());
+        List<Long> studentIds = loadStudentIdsForExam(schoolId, req);
         if (studentIds == null || studentIds.isEmpty()) {
             throw new BusinessException("NO_STUDENTS", "当前筛选范围内没有考生，无法创建考试");
         }
@@ -125,13 +138,97 @@ public class ExamArrangeService {
         return result;
     }
 
+    @Transactional
+    public Map<String, Object> updateExam(Long schoolId, Long examId, UpdateExamReq req) {
+        ExamEntity exam = examMapper.selectById(examId);
+        if (exam == null || !Objects.equals(exam.getSchoolId(), schoolId)) {
+            throw new BusinessException("NOT_FOUND", "考试不存在");
+        }
+        if (!isExamPending(exam)) {
+            throw new BusinessException("EXAM_UPDATE_FORBIDDEN", "仅未开始的考试允许修改");
+        }
+        validateUpdateReq(req);
+
+        exam.setName(req.name().trim());
+        exam.setStartAt(req.startAt());
+        exam.setEndAt(req.endAt());
+        examMapper.updateById(exam);
+
+        return Map.of(
+                "examId", exam.getId(),
+                "name", exam.getName(),
+                "startAt", exam.getStartAt(),
+                "endAt", exam.getEndAt()
+        );
+    }
+
+    @Transactional
+    public void deleteExam(Long schoolId, Long examId) {
+        ExamEntity exam = examMapper.selectById(examId);
+        if (exam == null || !Objects.equals(exam.getSchoolId(), schoolId)) {
+            throw new BusinessException("NOT_FOUND", "考试不存在");
+        }
+        if (isExamRunning(exam)) {
+            throw new BusinessException("EXAM_DELETE_FORBIDDEN", "进行中的考试不允许删除");
+        }
+
+        List<ExamSessionEntity> sessions = sessionMapper.selectList(
+                new LambdaQueryWrapper<ExamSessionEntity>().eq(ExamSessionEntity::getExamId, examId));
+        List<Long> sessionIds = sessions.stream().map(ExamSessionEntity::getId).filter(Objects::nonNull).toList();
+
+        List<AnomalyClipTaskEntity> clipTasks = anomalyClipTaskMapper.selectList(
+                new LambdaQueryWrapper<AnomalyClipTaskEntity>().eq(AnomalyClipTaskEntity::getExamId, examId));
+        List<String> taskIds = clipTasks.stream().map(AnomalyClipTaskEntity::getTaskId).filter(Objects::nonNull).toList();
+        if (!taskIds.isEmpty()) {
+            anomalySegmentLinkMapper.delete(new LambdaQueryWrapper<com.kovr.proctor.domain.entity.AnomalySegmentLinkEntity>()
+                    .in(com.kovr.proctor.domain.entity.AnomalySegmentLinkEntity::getTaskId, taskIds));
+        }
+        anomalyClipTaskMapper.delete(new LambdaQueryWrapper<AnomalyClipTaskEntity>().eq(AnomalyClipTaskEntity::getExamId, examId));
+        anomalyEvidenceMapper.delete(new LambdaQueryWrapper<com.kovr.proctor.domain.entity.AnomalyEvidenceEntity>()
+                .eq(com.kovr.proctor.domain.entity.AnomalyEvidenceEntity::getExamId, examId));
+        if (!sessionIds.isEmpty()) {
+            recordingSegmentMapper.delete(new LambdaQueryWrapper<com.kovr.proctor.domain.entity.RecordingSegmentEntity>()
+                    .in(com.kovr.proctor.domain.entity.RecordingSegmentEntity::getSessionId, sessionIds));
+        }
+
+        List<ExamRoomEntity> rooms = examRoomMapper.selectList(
+                new LambdaQueryWrapper<ExamRoomEntity>().eq(ExamRoomEntity::getExamId, examId));
+        List<Long> roomIds = rooms.stream().map(ExamRoomEntity::getId).filter(Objects::nonNull).toList();
+        if (!roomIds.isEmpty()) {
+            enrollmentMapper.delete(new LambdaQueryWrapper<ExamRoomEnrollmentEntity>()
+                    .in(ExamRoomEnrollmentEntity::getExamRoomId, roomIds));
+        }
+        sessionMapper.delete(new LambdaQueryWrapper<ExamSessionEntity>().eq(ExamSessionEntity::getExamId, examId));
+        examRoomMapper.delete(new LambdaQueryWrapper<ExamRoomEntity>().eq(ExamRoomEntity::getExamId, examId));
+        examMapper.deleteById(examId);
+    }
+
     private void validateReq(CreateExamReq req) {
         if (req == null || req.name() == null || req.name().isBlank()) {
             throw new BusinessException("BAD_REQUEST", "考试名称不能为空");
         }
+        if (req.departmentId() == null || req.majorId() == null) {
+            throw new BusinessException("BAD_REQUEST", "学院和专业不能为空");
+        }
         if (req.startAt() != null && req.endAt() != null && req.endAt().isBefore(req.startAt())) {
             throw new BusinessException("BAD_REQUEST", "考试结束时间不能早于开始时间");
         }
+    }
+
+    private List<Long> loadStudentIdsForExam(Long schoolId, CreateExamReq req) {
+        List<String> emails = req.studentEmails() == null ? List.of() : req.studentEmails().stream()
+                .filter(item -> item != null && !item.isBlank())
+                .map(String::trim)
+                .distinct()
+                .toList();
+        if (emails.isEmpty()) {
+            return studentMapper.selectStudentIdsByScope(schoolId, req.departmentId(), req.majorId());
+        }
+        List<Long> studentIds = studentMapper.selectStudentIdsByEmails(schoolId, req.departmentId(), req.majorId(), emails);
+        if (studentIds.size() != emails.size()) {
+            throw new BusinessException("STUDENT_SCOPE_MISMATCH", "导入名单中存在未找到、已冻结或不属于当前学院专业的学生");
+        }
+        return studentIds;
     }
 
     private int calculateRoomCapacity(CreateExamReq req) {
@@ -153,5 +250,48 @@ public class ExamArrangeService {
             return Math.min(byScreen, hardCap);
         }
         return byScreen;
+    }
+
+    private void validateUpdateReq(UpdateExamReq req) {
+        if (req == null || req.name() == null || req.name().isBlank()) {
+            throw new BusinessException("BAD_REQUEST", "考试名称不能为空");
+        }
+        if (req.startAt() != null && req.endAt() != null && req.endAt().isBefore(req.startAt())) {
+            throw new BusinessException("BAD_REQUEST", "考试结束时间不能早于开始时间");
+        }
+    }
+
+    private boolean isExamPending(ExamEntity exam) {
+        return !isExamRunning(exam) && !isExamFinished(exam);
+    }
+
+    private boolean isExamRunning(ExamEntity exam) {
+        if (exam == null || exam.getStartAt() == null) {
+            return false;
+        }
+        var now = java.time.LocalDateTime.now();
+        boolean started = !exam.getStartAt().isAfter(now);
+        boolean notEnded = exam.getEndAt() == null || !exam.getEndAt().isBefore(now);
+        return started && notEnded;
+    }
+
+    private boolean isExamFinished(ExamEntity exam) {
+        return exam != null && exam.getEndAt() != null && exam.getEndAt().isBefore(java.time.LocalDateTime.now());
+    }
+
+    private String normalizeKeyword(String keyword) {
+        if (keyword == null) {
+            return null;
+        }
+        String value = keyword.trim();
+        return value.isEmpty() ? null : value;
+    }
+
+    private String normalizeStatus(String status) {
+        if (status == null) {
+            return null;
+        }
+        String value = status.trim();
+        return value.isEmpty() ? null : value;
     }
 }

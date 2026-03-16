@@ -27,6 +27,13 @@ public class UserDetailsServiceImpl implements UserDetailsService {
         if (u == null || u.getEnabled() == null || u.getEnabled() == 0) {
             throw new UsernameNotFoundException("用户不存在或已禁用");
         }
-        return new UserDetailsImpl(u.getId(), u.getEmail(), u.getPassword(), u.getName(), u.getRole(), u.getEnabled() == 1);
+        return new UserDetailsImpl(
+                u.getId(),
+                u.getEmail(),
+                u.getPassword(),
+                u.getName(),
+                u.getRole(),
+                u.getEnabled() == 1,
+                u.getMustChangePassword() != null && u.getMustChangePassword() == 1);
     }
 }

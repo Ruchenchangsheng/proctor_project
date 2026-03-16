@@ -30,5 +30,11 @@ public class AnomalyEvidenceEntity {
     private String mediaType;
     private String mediaExt;
     private Integer frameCount;
+    private String reviewStatus;
+    private String reviewNote;
+    private Long reviewedByUserId;
+    private String reviewedByName;
+    private LocalDateTime reviewedAt;
+    private LocalDateTime lastViewedAt;
     private LocalDateTime createdAt;
 }
