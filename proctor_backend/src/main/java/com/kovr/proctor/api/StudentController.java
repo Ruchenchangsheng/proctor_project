@@ -25,6 +25,9 @@ import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
+/**
+ * StudentController 提供学生端的考试列表、身份核验和考试过程相关接口。
+ */
 
 @RestController
 @RequestMapping(value = "/api/student", produces = MediaType.APPLICATION_JSON_VALUE)
@@ -52,6 +55,10 @@ public class StudentController {
     @Value("${app.face.min_det_score:0.5}")
     double minDetScore;
 
+    /**
+     * 封装当前类中的一段独立业务步骤，减少调用方直接处理过多细节。
+     * 阅读这个方法时，可以重点关注它读取了哪些输入、修改了哪些状态，以及异常或边界条件如何处理。
+     */
     @GetMapping("/profile")
     @PreAuthorize("hasRole('STUDENT')")
     public Map<String, Object> profile(@AuthenticationPrincipal UserDetailsImpl u) {
@@ -62,6 +69,10 @@ public class StudentController {
         return m; // { id, name, email, schoolName, departmentName, majorName }
     }
 
+    /**
+     * 封装当前类中的一段独立业务步骤，减少调用方直接处理过多细节。
+     * 阅读这个方法时，可以重点关注它读取了哪些输入、修改了哪些状态，以及异常或边界条件如何处理。
+     */
     @GetMapping(value = "/photo", produces = MediaType.ALL_VALUE)
     @PreAuthorize("hasRole('STUDENT')")
     public ResponseEntity<byte[]> photo(@AuthenticationPrincipal UserDetailsImpl u) {
@@ -100,10 +111,15 @@ public class StudentController {
     }
 
     /** 考前 1:1 人脸验证（上传当前帧，与注册照比对） */
+    /**
+     * 执行前置校验或条件判断，为后续主流程提供可靠分支依据。
+     * 阅读这个方法时，可以重点关注它读取了哪些输入、修改了哪些状态，以及异常或边界条件如何处理。
+     */
     @PostMapping(value = "/verify", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
     @PreAuthorize("hasRole('STUDENT')")
     public Map<String, Object> verify(@AuthenticationPrincipal UserDetailsImpl u,
                                       @RequestPart("photo") MultipartFile photo) throws Exception {
+        // 学生考前核验走的是 1:1 比对：注册 embedding 对当前抓拍 embedding 做余弦相似度计算。
         var stu = sp.selectById(u.getId());
         if (stu == null || stu.getFaceEmbeddingJson() == null || stu.getFaceEmbeddingJson().isBlank()) {
             return Map.of("ok", false, "passed", false, "msg", "未登记人脸，请联系学校管理员");
@@ -168,6 +184,10 @@ public class StudentController {
         return v;
     }
 
+    /**
+     * 封装当前类中的一段独立业务步骤，减少调用方直接处理过多细节。
+     * 阅读这个方法时，可以重点关注它读取了哪些输入、修改了哪些状态，以及异常或边界条件如何处理。
+     */
     private double cosine(double[] a, double[] b) {
         if (a.length == 0 || b.length == 0 || a.length != b.length) return -1.0;
         double dot = 0, na = 0, nb = 0;
@@ -180,6 +200,10 @@ public class StudentController {
         return denom == 0 ? -1.0 : (dot / denom);
     }
 
+    /**
+     * 封装当前类中的一段独立业务步骤，减少调用方直接处理过多细节。
+     * 阅读这个方法时，可以重点关注它读取了哪些输入、修改了哪些状态，以及异常或边界条件如何处理。
+     */
     @GetMapping("/current-room")
     @PreAuthorize("hasRole('STUDENT')")
     public Map<String, Object> currentRoom(@AuthenticationPrincipal UserDetailsImpl u) {
@@ -196,6 +220,10 @@ public class StudentController {
         }
     }
 
+    /**
+     * 封装当前类中的一段独立业务步骤，减少调用方直接处理过多细节。
+     * 阅读这个方法时，可以重点关注它读取了哪些输入、修改了哪些状态，以及异常或边界条件如何处理。
+     */
     @GetMapping("/exams")
     @PreAuthorize("hasRole('STUDENT')")
     public List<Map<String, Object>> myExams(@AuthenticationPrincipal UserDetailsImpl u) {
@@ -206,6 +234,10 @@ public class StudentController {
         }
     }
 
+    /**
+     * 封装当前类中的一段独立业务步骤，减少调用方直接处理过多细节。
+     * 阅读这个方法时，可以重点关注它读取了哪些输入、修改了哪些状态，以及异常或边界条件如何处理。
+     */
     @GetMapping("/exams/{sessionId}/room")
     @PreAuthorize("hasRole('STUDENT')")
     public Map<String, Object> sessionRoom(@AuthenticationPrincipal UserDetailsImpl u,
@@ -230,11 +262,20 @@ public class StudentController {
         }
     }
 
+    /**
+     * 处理学生端“当前考试房间”模式下的一帧监考上传。
+     * 这条接口是整条监考链路的核心入口：
+     * 1. 先确认学生当前确实有正在进行的考试；
+     * 2. 把这一帧同步给教师实时监看；
+     * 3. 把图片送去做异常检测与身份巡检；
+     * 4. 如有异常，再异步创建证据任务并通过 WebSocket 推送给教师端。
+     */
     @PostMapping(value = "/current-room/frame", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
     @PreAuthorize("hasRole('STUDENT')")
     public Map<String, Object> uploadFrame(@AuthenticationPrincipal UserDetailsImpl u,
                                            @RequestPart("photo") MultipartFile photo,
                                            @RequestParam(value = "capturedAtMs", required = false) Long capturedAtMs) throws Exception {
+        // 逐帧上传是学生端监考主链路：更新教师实时画面、调用异常检测、聚合事件、异步生成证据。
         Map<String, Object> session;
         try {
             session = examSessionMapper.selectCurrentSessionByStudentId(u.getId());
@@ -258,13 +299,18 @@ public class StudentController {
         Long roomId = roomIdNumber.longValue();
         byte[] bytes = photo.getBytes();
         String mime = Optional.ofNullable(photo.getContentType()).orElse("image/jpeg");
+        // capturedAtMs 来自浏览器采样时刻；后端会限制它的有效范围，避免客户端伪造过远时间。
         long tsMs = normalizeCaptureTs(capturedAtMs);
+        // 教师端实时大屏只关心“每个学生最新一帧是什么”，所以这里直接覆盖 live state。
         examLiveStateService.putFrame(roomId, u.getId(), mime, bytes);
+        // 证据服务额外缓存原始帧，方便后续围绕异常时刻截取前后文。
         anomalyEvidenceService.bufferFrame(roomId, u.getId(), mime, bytes, tsMs);
 
         var policy = anomalyPolicyService.getPolicy(loadSchoolId(u.getId()));
+        // processFrame 会把“模型异常检测”和“周期性身份巡检”两条结果合并成同一种事件结构。
         var enrichedEvents = processFrame(roomId, u.getId(), bytes, mime, tsMs, policy);
         if (!enrichedEvents.isEmpty()) {
+            // 事件先合并成持续区间，再异步排队生成媒体证据，最后通过 WebSocket 推给教师端。
             anomalyEventService.mergeEvents(roomId, u.getId(), enrichedEvents, policy.severeThreshold());
 
             var evidenceList = anomalyEvidenceService.captureEvidenceBatch(
@@ -281,12 +327,17 @@ public class StudentController {
 
     }
 
+    /**
+     * 处理显式 sessionId 路由下的一帧监考上传。
+     * 与 current-room 版本的区别仅在于：它直接绑定具体场次，避免学生同时存在多场考试时查错上下文。
+     */
     @PostMapping(value = "/exams/{sessionId}/frame", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
     @PreAuthorize("hasRole('STUDENT')")
     public Map<String, Object> uploadFrameBySession(@AuthenticationPrincipal UserDetailsImpl u,
                                                     @PathVariable Long sessionId,
                                                     @RequestPart("photo") MultipartFile photo,
                                                     @RequestParam(value = "capturedAtMs", required = false) Long capturedAtMs) throws Exception {
+        // 带 sessionId 的版本用于新路由，逻辑与 current-room 基本一致，只是显式绑定具体考试场次。
         Map<String, Object> session;
         try {
             session = examSessionMapper.selectSessionRoomByStudentAndSessionId(u.getId(), sessionId);
@@ -317,6 +368,7 @@ public class StudentController {
         var policy = anomalyPolicyService.getPolicy(loadSchoolId(u.getId()));
         var enrichedEvents = processFrame(roomId, u.getId(), bytes, mime, tsMs, policy);
         if (!enrichedEvents.isEmpty()) {
+            // 这一段和 current-room 版本保持一致，确保两种入口最终流入同一套监考事件链路。
             anomalyEventService.mergeEvents(roomId, u.getId(), enrichedEvents, policy.severeThreshold());
             var evidenceList = anomalyEvidenceService.captureEvidenceBatch(
                     roomId,
@@ -331,6 +383,10 @@ public class StudentController {
         return Map.of("ok", true, "examRoomId", roomId, "size", bytes.length, "events", enrichedEvents);
     }
 
+    /**
+     * 把输入值转换成当前模块更容易继续处理的标准格式。
+     * 阅读这个方法时，可以重点关注它读取了哪些输入、修改了哪些状态，以及异常或边界条件如何处理。
+     */
     private long normalizeCaptureTs(Long capturedAtMs) {
         long now = System.currentTimeMillis();
         if (capturedAtMs == null) {
@@ -345,6 +401,10 @@ public class StudentController {
     }
 
 
+    /**
+     * 封装当前类中的一段独立业务步骤，减少调用方直接处理过多细节。
+     * 阅读这个方法时，可以重点关注它读取了哪些输入、修改了哪些状态，以及异常或边界条件如何处理。
+     */
     @PostMapping(value = "/current-room/video-chunk", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
     @PreAuthorize("hasRole('STUDENT')")
     public Map<String, Object> uploadVideoChunk(@AuthenticationPrincipal UserDetailsImpl u,
@@ -360,6 +420,10 @@ public class StudentController {
         return handleVideoChunkUpload(u, session, video, chunkStartAtMs, chunkEndAtMs);
     }
 
+    /**
+     * 封装当前类中的一段独立业务步骤，减少调用方直接处理过多细节。
+     * 阅读这个方法时，可以重点关注它读取了哪些输入、修改了哪些状态，以及异常或边界条件如何处理。
+     */
     @PostMapping(value = "/exams/{sessionId}/video-chunk", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
     @PreAuthorize("hasRole('STUDENT')")
     public Map<String, Object> uploadVideoChunkBySession(@AuthenticationPrincipal UserDetailsImpl u,
@@ -376,6 +440,10 @@ public class StudentController {
         return handleVideoChunkUpload(u, session, video, chunkStartAtMs, chunkEndAtMs);
     }
 
+    /**
+     * 封装当前类中的一段独立业务步骤，减少调用方直接处理过多细节。
+     * 阅读这个方法时，可以重点关注它读取了哪些输入、修改了哪些状态，以及异常或边界条件如何处理。
+     */
     private Map<String, Object> handleVideoChunkUpload(UserDetailsImpl u,
                                                        Map<String, Object> session,
                                                        MultipartFile video,
@@ -408,6 +476,10 @@ public class StudentController {
     }
 
 
+    /**
+     * 把输入值转换成当前模块更容易继续处理的标准格式。
+     * 阅读这个方法时，可以重点关注它读取了哪些输入、修改了哪些状态，以及异常或边界条件如何处理。
+     */
     private Long toLong(Object value, Long defaultValue) {
         if (value instanceof Number n) {
             return n.longValue();
@@ -419,6 +491,10 @@ public class StudentController {
         }
     }
 
+    /**
+     * 封装当前类中的一段独立业务步骤，减少调用方直接处理过多细节。
+     * 阅读这个方法时，可以重点关注它读取了哪些输入、修改了哪些状态，以及异常或边界条件如何处理。
+     */
     @GetMapping("/exams/{sessionId}/heartbeat")
     @PreAuthorize("hasRole('STUDENT')")
     public Map<String, Object> heartbeat(@AuthenticationPrincipal UserDetailsImpl u,
@@ -440,6 +516,10 @@ public class StudentController {
         return Map.of("ok", true, "ended", false);
     }
 
+    /**
+     * 更新当前业务状态，并把变更写回数据库、内存或界面状态。
+     * 阅读这个方法时，可以重点关注它读取了哪些输入、修改了哪些状态，以及异常或边界条件如何处理。
+     */
     @PostMapping("/exams/{sessionId}/submit")
     @PreAuthorize("hasRole('STUDENT')")
     public Map<String, Object> submitExam(@AuthenticationPrincipal UserDetailsImpl u,
@@ -456,6 +536,10 @@ public class StudentController {
         return Map.of("ok", true, "ended", true, "msg", "已交卷并退出考试");
     }
 
+    /**
+     * 封装当前类中的一段独立业务步骤，减少调用方直接处理过多细节。
+     * 阅读这个方法时，可以重点关注它读取了哪些输入、修改了哪些状态，以及异常或边界条件如何处理。
+     */
     @PostMapping("/exams/{sessionId}/abnormal-exit")
     @PreAuthorize("hasRole('STUDENT')")
     public Map<String, Object> abnormalExit(@AuthenticationPrincipal UserDetailsImpl u,
@@ -484,12 +568,20 @@ public class StudentController {
         return Map.of("ok", true, "ended", false, "msg", "已记录异常退出", "maxReconnectCount", maxReconnectCount, "remainReconnectCount", remain);
     }
 
+    /**
+     * 处理输入数据并把它们整理成当前模块后续可继续消费的结构。
+     * 阅读这个方法时，可以重点关注它读取了哪些输入、修改了哪些状态，以及异常或边界条件如何处理。
+     */
     private List<Map<String, Object>> processFrame(Long roomId, Long studentId, byte[] bytes, String mime, long tsMs, AnomalyPolicyService.Policy policy) {
+        // 这里把两条检测链合并到一起：
+        // 1. 高频异常行为检测：看是否有低头、看旁边、离座等行为；
+        // 2. 低频身份巡检：确认当前画面里仍然是本人且人脸可见。
         List<Map<String, Object>> merged = new ArrayList<>();
         String key = roomId + ":" + studentId;
 
         long lastAnomaly = lastAnomalyAt.getOrDefault(key, 0L);
         if (tsMs - lastAnomaly >= policy.sampleIntervalMs()) {
+            // 异常检测不必每帧都跑，按策略抽样即可，避免给 Python 服务带来过高压力。
             var events = anomalyClient.detect(roomId, studentId, bytes, mime, tsMs);
             merged.addAll(enrichEvents(events, policy));
             lastAnomalyAt.put(key, tsMs);
@@ -497,6 +589,7 @@ public class StudentController {
 
         long lastIdentity = lastIdentityAt.getOrDefault(key, 0L);
         if (tsMs - lastIdentity >= policy.identityVerifyIntervalSec() * 1000L) {
+            // 身份巡检频率更低，因为它代价更高，而且人的身份状态不会像姿态那样频繁变化。
             Map<String, Object> identityEvent = checkIdentityEvent(studentId, tsMs, bytes, mime, policy);
             if (identityEvent != null) {
                 merged.add(identityEvent);
@@ -507,6 +600,10 @@ public class StudentController {
         return merged;
     }
 
+    /**
+     * 执行前置校验或条件判断，为后续主流程提供可靠分支依据。
+     * 阅读这个方法时，可以重点关注它读取了哪些输入、修改了哪些状态，以及异常或边界条件如何处理。
+     */
     private Map<String, Object> checkIdentityEvent(Long studentId, long tsMs, byte[] bytes, String mime, AnomalyPolicyService.Policy policy) {
         var student = sp.selectById(studentId);
         if (student == null || student.getFaceEmbeddingJson() == null || student.getFaceEmbeddingJson().isBlank()) {
@@ -532,6 +629,10 @@ public class StudentController {
         }
     }
 
+    /**
+     * 创建并组装当前业务对象或执行一段创建型流程。
+     * 阅读这个方法时，可以重点关注它读取了哪些输入、修改了哪些状态，以及异常或边界条件如何处理。
+     */
     private Map<String, Object> buildIdentityEvent(String label, long tsMs, double risk, AnomalyPolicyService.Policy policy) {
         if (risk < policy.warningThreshold()) {
             return null;
@@ -546,6 +647,10 @@ public class StudentController {
         item.put("severity", risk >= policy.severeThreshold() ? "SEVERE" : "WARNING");
         return item;
     }
+    /**
+     * 更新当前业务状态，并把变更写回数据库、内存或界面状态。
+     * 阅读这个方法时，可以重点关注它读取了哪些输入、修改了哪些状态，以及异常或边界条件如何处理。
+     */
     private void markSessionEntered(Long sessionId) {
         if (sessionId == null) return;
         try {
@@ -555,10 +660,18 @@ public class StudentController {
         }
     }
 
+    /**
+     * 封装当前类中的一段独立业务步骤，减少调用方直接处理过多细节。
+     * 阅读这个方法时，可以重点关注它读取了哪些输入、修改了哪些状态，以及异常或边界条件如何处理。
+     */
     private void autoFinishSession(Map<String, Object> session) {
         autoFinishSession(session, "TIME_UP");
     }
 
+    /**
+     * 封装当前类中的一段独立业务步骤，减少调用方直接处理过多细节。
+     * 阅读这个方法时，可以重点关注它读取了哪些输入、修改了哪些状态，以及异常或边界条件如何处理。
+     */
     private void autoFinishSession(Map<String, Object> session, String reason) {
         if (session == null) return;
         Object sid = session.get("sessionId");
@@ -584,6 +697,10 @@ public class StudentController {
         }
     }
 
+    /**
+     * 执行前置校验或条件判断，为后续主流程提供可靠分支依据。
+     * 阅读这个方法时，可以重点关注它读取了哪些输入、修改了哪些状态，以及异常或边界条件如何处理。
+     */
     private boolean isSessionRunning(Map<String, Object> session) {
         LocalDateTime now = LocalDateTime.now();
         LocalDateTime startAt = parseDateTime(session.get("startAt"));
@@ -597,6 +714,10 @@ public class StudentController {
         return true;
     }
 
+    /**
+     * 封装当前类中的一段独立业务步骤，减少调用方直接处理过多细节。
+     * 阅读这个方法时，可以重点关注它读取了哪些输入、修改了哪些状态，以及异常或边界条件如何处理。
+     */
     private LocalDateTime parseDateTime(Object value) {
         if (value == null) return null;
         try {
@@ -606,11 +727,19 @@ public class StudentController {
         }
     }
 
+    /**
+     * 读取或查询当前业务场景下需要的数据。
+     * 阅读这个方法时，可以重点关注它读取了哪些输入、修改了哪些状态，以及异常或边界条件如何处理。
+     */
     private Long loadSchoolId(Long studentUserId) {
         var student = sp.selectById(studentUserId);
         return student == null ? null : student.getSchoolId();
     }
 
+    /**
+     * 读取或查询当前业务场景下需要的数据。
+     * 阅读这个方法时，可以重点关注它读取了哪些输入、修改了哪些状态，以及异常或边界条件如何处理。
+     */
     private String loadInvigilatorName(Long roomId) {
         var room = examRoomMapper.selectById(roomId);
         if (room == null || room.getInvigilatorId() == null) {
@@ -620,6 +749,10 @@ public class StudentController {
         return user == null ? null : user.getName();
     }
 
+    /**
+     * 读取或查询当前业务场景下需要的数据。
+     * 阅读这个方法时，可以重点关注它读取了哪些输入、修改了哪些状态，以及异常或边界条件如何处理。
+     */
     private String loadStudentName(Long studentUserId, String fallback) {
         var profile = sp.selectStudentProfileByUserId(studentUserId);
         if (profile == null) {
@@ -629,6 +762,10 @@ public class StudentController {
         return studentName == null ? fallback : String.valueOf(studentName);
     }
 
+    /**
+     * 封装当前类中的一段独立业务步骤，减少调用方直接处理过多细节。
+     * 阅读这个方法时，可以重点关注它读取了哪些输入、修改了哪些状态，以及异常或边界条件如何处理。
+     */
     private List<Map<String, Object>> enrichEvents(List<Map<String, Object>> events, AnomalyPolicyService.Policy policy) {
         if (events == null || events.isEmpty()) {
             return List.of();
@@ -650,6 +787,10 @@ public class StudentController {
         return out;
     }
 
+    /**
+     * 把输入值转换成当前模块更容易继续处理的标准格式。
+     * 阅读这个方法时，可以重点关注它读取了哪些输入、修改了哪些状态，以及异常或边界条件如何处理。
+     */
     private double toDouble(Object value) {
         if (value instanceof Number n) {
             return n.doubleValue();
@@ -687,6 +828,8 @@ public class StudentController {
         if (events == null || events.isEmpty()) {
             return;
         }
+        // 教师端监考页不只需要“刚发生了什么”，还需要“当前还在持续什么”和“已有证据列表是什么”。
+        // 所以这里一次性把增量事件、活动状态、历史事件和策略参数都打包进同一条实时消息里。
         Map<String, Object> payload = new LinkedHashMap<>();
         payload.put("type", "anomaly-update");
         payload.put("roomId", roomId);

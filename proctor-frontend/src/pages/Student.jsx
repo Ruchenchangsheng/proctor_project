@@ -1,3 +1,4 @@
+// Student 页面承载学生端的历史入口逻辑，用于兼容旧路由或过渡页面。
 import { useEffect, useState } from "react";
 import { api } from "../apiClient";
 import { Card, Descriptions, Image, Typography, Spin, message } from "antd";
@@ -9,6 +10,8 @@ export default function Student() {
   const [photoUrl, setPhotoUrl] = useState("");
   const [loading, setLoading] = useState(true);
 
+  // 这个 effect 负责在依赖变化时同步加载数据或建立/释放副作用。
+  // 阅读时可以重点看依赖数组、内部异步流程以及 return 清理逻辑三部分。
   useEffect(() => {
     let cancelled = false;
 

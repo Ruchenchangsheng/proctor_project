@@ -1,3 +1,4 @@
+// ExamRunner 是学生考试进行页，负责采集本地音视频、上传监考帧、发送 WebRTC 信令并处理考试退出。
 import { useEffect, useRef, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { api } from "../../apiClient";
@@ -39,6 +40,8 @@ export default function ExamRunner() {
 
   const studentSenderId = me?.studentId || me?.userId || me?.id;
 
+  // 负责把输入数据整理成当前页面更容易消费的格式。
+  // 跟读这个函数时，建议同时留意它依赖了哪些 state/ref，以及执行后会触发哪些界面刷新。
   const normalizeId = (value) => {
     if (value === null || value === undefined || value === "") return "";
     return String(value);
@@ -46,6 +49,7 @@ export default function ExamRunner() {
 
   const currentRoomSignalId = (roomData) => Number(roomData?.examRoomId || roomData?.roomExamId || roomData?.id || 0);
 
+  // 所有学生端实时消息都通过同一信令主题收发，消息体再区分目标教师或学生。
   const publishSignal = (examRoomSignalId, payload) => {
     const client = stompRef.current;
     if (!client?.connected) {
@@ -59,6 +63,8 @@ export default function ExamRunner() {
     });
   }
 
+  // 负责切换界面状态或执行带副作用的收尾动作。
+  // 跟读这个函数时，建议同时留意它依赖了哪些 state/ref，以及执行后会触发哪些界面刷新。
   const clearTimers = () => {
     uploadLoopStoppedRef.current = true;
     if (uploadTimerRef.current) {
@@ -71,8 +77,10 @@ export default function ExamRunner() {
     }
   };
 
+  // 负责把页面中的一段独立交互逻辑拆出来，避免主组件渲染区混入过多细节。
+  // 跟读这个函数时，建议同时留意它依赖了哪些 state/ref，以及执行后会触发哪些界面刷新。
   const teardownRealtimeResources = () => {
-
+    // 考试退出时要同时关闭录制器、STOMP、WebRTC peer 和本地硬件流，防止资源泄漏。
     if (mediaRecorderRef.current && mediaRecorderRef.current.state !== "inactive") {
       mediaRecorderRef.current.stop();
     }
@@ -93,6 +101,8 @@ export default function ExamRunner() {
   };
 
 
+  // 负责切换界面状态或执行带副作用的收尾动作。
+  // 跟读这个函数时，建议同时留意它依赖了哪些 state/ref，以及执行后会触发哪些界面刷新。
   const closePeer = (peerId) => {
     const pc = peersRef.current.get(peerId);
     if (pc) {
@@ -101,11 +111,14 @@ export default function ExamRunner() {
     }
   }
 
+  // 负责把页面中的一段独立交互逻辑拆出来，避免主组件渲染区混入过多细节。
+  // 跟读这个函数时，建议同时留意它依赖了哪些 state/ref，以及执行后会触发哪些界面刷新。
   const ensurePeer = (peerId, examRoomSignalId) => {
     if (peersRef.current.has(peerId)) {
       return peersRef.current.get(peerId);
     }
 
+    // 一个教师对应一个 RTCPeerConnection，教师重新发起 offer 时复用已有连接。
     const pc = new RTCPeerConnection({ iceServers: [{ urls: "stun:stun.l.google.com:19302" }] });
     console.info("[student-exam] create peer for teacher", { peerId, examRoomSignalId });
 
@@ -136,6 +149,8 @@ export default function ExamRunner() {
     return pc;
   };
 
+  // 负责把页面中的一段独立交互逻辑拆出来，避免主组件渲染区混入过多细节。
+  // 跟读这个函数时，建议同时留意它依赖了哪些 state/ref，以及执行后会触发哪些界面刷新。
   const exitExam = (tip) => {
     if (exitingRef.current) return;
     exitingRef.current = true;
@@ -158,6 +173,8 @@ export default function ExamRunner() {
     window.setTimeout(() => navigate("/student/home"), 1200);
   };
 
+  // 负责把页面中的一段独立交互逻辑拆出来，避免主组件渲染区混入过多细节。
+  // 跟读这个函数时，建议同时留意它依赖了哪些 state/ref，以及执行后会触发哪些界面刷新。
   const uploadFrameOnce = async () => {
     if (uploadBusyRef.current) return;
     const video = videoRef.current;
@@ -166,6 +183,7 @@ export default function ExamRunner() {
 
     uploadBusyRef.current = true;
     try {
+      // 学生端把当前视频帧截图成 JPEG 上传；后端会同时做人脸巡检、异常检测和证据缓冲。
       const canvas = canvasRef.current || document.createElement("canvas");
       canvasRef.current = canvas;
       canvas.width = video.videoWidth;
@@ -214,9 +232,12 @@ export default function ExamRunner() {
     }
   };
 
+  // 负责驱动一段带外部依赖的流程，例如权限申请、实时通信或轮询检查。
+  // 跟读这个函数时，建议同时留意它依赖了哪些 state/ref，以及执行后会触发哪些界面刷新。
   const scheduleFrameUpload = () => {
     if (uploadTimerRef.current) return;
     uploadLoopStoppedRef.current = false;
+    // 用 setTimeout 链而不是 setInterval，避免某次上传耗时过长导致并发堆积。
     const loop = async () => {
       if (uploadLoopStoppedRef.current) return;
       await uploadFrameOnce();
@@ -228,12 +249,15 @@ export default function ExamRunner() {
   };
 
 
+  // 负责驱动一段带外部依赖的流程，例如权限申请、实时通信或轮询检查。
+  // 跟读这个函数时，建议同时留意它依赖了哪些 state/ref，以及执行后会触发哪些界面刷新。
   const startVideoRecording = (stream) => {
     if (!window.MediaRecorder || !stream) return;
     const apiPath = videoChunkApiPathRef.current;
     if (!apiPath) return;
 
     try {
+      // 连续分片录制用于事后证据拼接，和逐帧截图是两条并行链路。
       const hasAudioTrack = stream.getAudioTracks().length > 0;
       const mimeCandidates = hasAudioTrack
         ? [
@@ -281,6 +305,8 @@ export default function ExamRunner() {
     }
   };
 
+  // 负责驱动一段带外部依赖的流程，例如权限申请、实时通信或轮询检查。
+  // 跟读这个函数时，建议同时留意它依赖了哪些 state/ref，以及执行后会触发哪些界面刷新。
   const requestExamMedia = async () => {
     const preference = loadExamMediaPreference(sessionId);
     const constraints = {
@@ -295,6 +321,7 @@ export default function ExamRunner() {
       },
     };
     try {
+      // 正式考试页要求摄像头和麦克风都在线，否则教师端拿不到完整监考流。
       const stream = await navigator.mediaDevices.getUserMedia(constraints);
       const hasVideoTrack = stream.getVideoTracks().some((track) => track.readyState === "live");
       const hasAudioTrack = stream.getAudioTracks().some((track) => track.readyState === "live");
@@ -318,9 +345,12 @@ export default function ExamRunner() {
     }
   };
 
+  // 负责驱动一段带外部依赖的流程，例如权限申请、实时通信或轮询检查。
+  // 跟读这个函数时，建议同时留意它依赖了哪些 state/ref，以及执行后会触发哪些界面刷新。
   const checkExamHeartbeat = async () => {
     if (!sessionId) return;
     try {
+      // 心跳接口让前端能在考试被后台结束、交卷或超时后及时退出页面。
       const resp = await api.get(`/student/exams/${sessionId}/heartbeat`);
       if (resp?.data?.ended) {
         exitExam(resp.data?.msg || "考试已结束");
@@ -330,8 +360,10 @@ export default function ExamRunner() {
     }
   };
 
+  // 这个 effect 负责在依赖变化时同步加载数据或建立/释放副作用。
+  // 阅读时可以重点看依赖数组、内部异步流程以及 return 清理逻辑三部分。
   useEffect(() => {
-
+    // 这个 effect 串起整条考试主线：校验考前授权 -> 打开本地流 -> 获取考场 -> 建立实时连接。
     let active = true;
 
     (async () => {
@@ -416,7 +448,7 @@ export default function ExamRunner() {
         client.onConnect = () => {
           console.info("[student-exam] stomp connected", { examRoomSignalId, studentSenderId });
           client.subscribe(`/topic/exam-room.${examRoomSignalId}`, async (frame) => {
-
+            // 同一个主题里会混入 offer、answer、candidate 等消息，这里按类型分发给对应 peer。
             let signal = {};
             try {
               signal = JSON.parse(frame?.body || "{}");
@@ -482,6 +514,7 @@ export default function ExamRunner() {
 
       clearTimers();
 
+      // 非正常退出会额外通知后端，便于后续做异常离场判定或自动交卷。
       if (sessionId && !normalExitRef.current) {
         api.post(`/student/exams/${sessionId}/abnormal-exit`).catch(() => { });
       }
@@ -499,9 +532,9 @@ export default function ExamRunner() {
   }, [sessionId, studentSenderId, navigate]);
 
   return (
-    <div style={{ width: "100%", height: "calc(94vh - 24px)", margin: "0 auto", display: "grid", gap: 16, overflow: "hidden" }}>
+    <div className="app-exam-runner">
       <Card className="glass-effect" variant="borderless" style={{ borderRadius: 16 }}>
-        <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 20 }}>
+        <div className="app-exam-runner-toolbar">
           <Space orientation="vertical">
             <Button
               size="small"

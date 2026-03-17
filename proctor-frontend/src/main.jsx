@@ -1,3 +1,4 @@
+// main 负责挂载 React 应用，并把路由、国际化和全局样式注入到浏览器入口。
 import { createRoot } from "react-dom/client";
 import { BrowserRouter } from "react-router-dom";
 import App from "./App.jsx";

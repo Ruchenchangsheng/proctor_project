@@ -1,12 +1,17 @@
+// AppSideMenu 负责根据当前角色渲染侧边导航，帮助不同端在统一壳层中切换页面。
 import { useEffect, useMemo, useState } from "react";
 import { Menu } from "antd";
 import { useTranslation } from "react-i18next";
 import { translateSourceText } from "../i18n/catalog";
 
+// 负责把页面中的一段独立交互逻辑拆出来，避免主组件渲染区混入过多细节。
+// 跟读这个函数时，建议同时留意它依赖了哪些 state/ref，以及执行后会触发哪些界面刷新。
 function isPathMatch(pathname, targetPath) {
   return pathname === targetPath || pathname.startsWith(`${targetPath}/`);
 }
 
+// 负责把页面中的一段独立交互逻辑拆出来，避免主组件渲染区混入过多细节。
+// 跟读这个函数时，建议同时留意它依赖了哪些 state/ref，以及执行后会触发哪些界面刷新。
 function collectActiveOpenKeys(groups, pathname) {
   const keys = [];
   (groups || []).forEach((group) => {
@@ -19,6 +24,8 @@ function collectActiveOpenKeys(groups, pathname) {
   return keys;
 }
 
+// 负责把页面中的一段独立交互逻辑拆出来，避免主组件渲染区混入过多细节。
+// 跟读这个函数时，建议同时留意它依赖了哪些 state/ref，以及执行后会触发哪些界面刷新。
 function resolveSelectedKeys(groups, pathname) {
   for (const group of groups || []) {
     for (const item of group.children || []) {
@@ -41,6 +48,8 @@ export default function AppSideMenu({ groups, pathname, onNavigate }) {
     (groups || []).map((group) => [group.key, collectActiveOpenKeys([group], pathname)]),
   ));
 
+  // 这个 effect 负责在依赖变化时同步加载数据或建立/释放副作用。
+  // 阅读时可以重点看依赖数组、内部异步流程以及 return 清理逻辑三部分。
   useEffect(() => {
     setOpenKeysByGroup((prev) => {
       const next = { ...prev };

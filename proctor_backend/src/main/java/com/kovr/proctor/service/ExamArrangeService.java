@@ -29,6 +29,9 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+/**
+ * ExamArrangeService 负责考试、考场和排班等编排逻辑。
+ */
 
 @Service
 @RequiredArgsConstructor
@@ -44,10 +47,18 @@ public class ExamArrangeService {
     private final AnomalyClipTaskMapper anomalyClipTaskMapper;
     private final AnomalySegmentLinkMapper anomalySegmentLinkMapper;
 
+    /**
+     * 读取或查询当前业务场景下需要的数据。
+     * 阅读这个方法时，可以重点关注它读取了哪些输入、修改了哪些状态，以及异常或边界条件如何处理。
+     */
     public List<Map<String, Object>> listExams(Long schoolId, Long departmentId, Long majorId, String keyword, String status) {
         return examMapper.selectExamsByScope(schoolId, departmentId, majorId, normalizeKeyword(keyword), normalizeStatus(status));
     }
 
+    /**
+     * 读取或查询当前业务场景下需要的数据。
+     * 阅读这个方法时，可以重点关注它读取了哪些输入、修改了哪些状态，以及异常或边界条件如何处理。
+     */
     public List<Map<String, Object>> listExamRooms(Long examId) {
         List<Map<String, Object>> rooms = examRoomMapper.selectRoomsByExamId(examId);
         for (Map<String, Object> room : rooms) {
@@ -59,6 +70,10 @@ public class ExamArrangeService {
         return rooms;
     }
 
+    /**
+     * 创建并组装当前业务对象或执行一段创建型流程。
+     * 阅读这个方法时，可以重点关注它读取了哪些输入、修改了哪些状态，以及异常或边界条件如何处理。
+     */
     @Transactional
     public Map<String, Object> createExam(Long schoolId, Long creatorId, CreateExamReq req) {
         validateReq(req);
@@ -138,6 +153,10 @@ public class ExamArrangeService {
         return result;
     }
 
+    /**
+     * 更新当前业务状态，并把变更写回数据库、内存或界面状态。
+     * 阅读这个方法时，可以重点关注它读取了哪些输入、修改了哪些状态，以及异常或边界条件如何处理。
+     */
     @Transactional
     public Map<String, Object> updateExam(Long schoolId, Long examId, UpdateExamReq req) {
         ExamEntity exam = examMapper.selectById(examId);
@@ -162,6 +181,10 @@ public class ExamArrangeService {
         );
     }
 
+    /**
+     * 执行删除、重置或状态切换操作，并处理随后的收尾动作。
+     * 阅读这个方法时，可以重点关注它读取了哪些输入、修改了哪些状态，以及异常或边界条件如何处理。
+     */
     @Transactional
     public void deleteExam(Long schoolId, Long examId) {
         ExamEntity exam = examMapper.selectById(examId);
@@ -203,6 +226,10 @@ public class ExamArrangeService {
         examMapper.deleteById(examId);
     }
 
+    /**
+     * 执行前置校验或条件判断，为后续主流程提供可靠分支依据。
+     * 阅读这个方法时，可以重点关注它读取了哪些输入、修改了哪些状态，以及异常或边界条件如何处理。
+     */
     private void validateReq(CreateExamReq req) {
         if (req == null || req.name() == null || req.name().isBlank()) {
             throw new BusinessException("BAD_REQUEST", "考试名称不能为空");
@@ -215,6 +242,10 @@ public class ExamArrangeService {
         }
     }
 
+    /**
+     * 读取或查询当前业务场景下需要的数据。
+     * 阅读这个方法时，可以重点关注它读取了哪些输入、修改了哪些状态，以及异常或边界条件如何处理。
+     */
     private List<Long> loadStudentIdsForExam(Long schoolId, CreateExamReq req) {
         List<String> emails = req.studentEmails() == null ? List.of() : req.studentEmails().stream()
                 .filter(item -> item != null && !item.isBlank())
@@ -231,6 +262,10 @@ public class ExamArrangeService {
         return studentIds;
     }
 
+    /**
+     * 封装当前类中的一段独立业务步骤，减少调用方直接处理过多细节。
+     * 阅读这个方法时，可以重点关注它读取了哪些输入、修改了哪些状态，以及异常或边界条件如何处理。
+     */
     private int calculateRoomCapacity(CreateExamReq req) {
         int width = req.invigilatorScreenWidth() == null ? 1920 : req.invigilatorScreenWidth();
         int height = req.invigilatorScreenHeight() == null ? 1080 : req.invigilatorScreenHeight();
@@ -252,6 +287,10 @@ public class ExamArrangeService {
         return byScreen;
     }
 
+    /**
+     * 执行前置校验或条件判断，为后续主流程提供可靠分支依据。
+     * 阅读这个方法时，可以重点关注它读取了哪些输入、修改了哪些状态，以及异常或边界条件如何处理。
+     */
     private void validateUpdateReq(UpdateExamReq req) {
         if (req == null || req.name() == null || req.name().isBlank()) {
             throw new BusinessException("BAD_REQUEST", "考试名称不能为空");
@@ -261,10 +300,18 @@ public class ExamArrangeService {
         }
     }
 
+    /**
+     * 执行前置校验或条件判断，为后续主流程提供可靠分支依据。
+     * 阅读这个方法时，可以重点关注它读取了哪些输入、修改了哪些状态，以及异常或边界条件如何处理。
+     */
     private boolean isExamPending(ExamEntity exam) {
         return !isExamRunning(exam) && !isExamFinished(exam);
     }
 
+    /**
+     * 执行前置校验或条件判断，为后续主流程提供可靠分支依据。
+     * 阅读这个方法时，可以重点关注它读取了哪些输入、修改了哪些状态，以及异常或边界条件如何处理。
+     */
     private boolean isExamRunning(ExamEntity exam) {
         if (exam == null || exam.getStartAt() == null) {
             return false;
@@ -275,10 +322,18 @@ public class ExamArrangeService {
         return started && notEnded;
     }
 
+    /**
+     * 执行前置校验或条件判断，为后续主流程提供可靠分支依据。
+     * 阅读这个方法时，可以重点关注它读取了哪些输入、修改了哪些状态，以及异常或边界条件如何处理。
+     */
     private boolean isExamFinished(ExamEntity exam) {
         return exam != null && exam.getEndAt() != null && exam.getEndAt().isBefore(java.time.LocalDateTime.now());
     }
 
+    /**
+     * 把输入值转换成当前模块更容易继续处理的标准格式。
+     * 阅读这个方法时，可以重点关注它读取了哪些输入、修改了哪些状态，以及异常或边界条件如何处理。
+     */
     private String normalizeKeyword(String keyword) {
         if (keyword == null) {
             return null;
@@ -287,6 +342,10 @@ public class ExamArrangeService {
         return value.isEmpty() ? null : value;
     }
 
+    /**
+     * 把输入值转换成当前模块更容易继续处理的标准格式。
+     * 阅读这个方法时，可以重点关注它读取了哪些输入、修改了哪些状态，以及异常或边界条件如何处理。
+     */
     private String normalizeStatus(String status) {
         if (status == null) {
             return null;

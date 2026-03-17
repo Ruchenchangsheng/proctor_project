@@ -1,3 +1,4 @@
+// SchoolMajorsPages 负责学校专业信息的维护与新增。
 import React, { useEffect, useState } from "react";
 import { useOutletContext } from "react-router-dom";
 import { api } from "../../apiClient";
@@ -24,6 +25,8 @@ export default function SchoolMajorsPages({ mode = "list" }) {
   const showAdd = mode === "add";
   const showList = mode === "list";
 
+  // 这个 effect 负责在依赖变化时同步加载数据或建立/释放副作用。
+  // 阅读时可以重点看依赖数组、内部异步流程以及 return 清理逻辑三部分。
   useEffect(() => {
     (async () => {
       if (!school?.id) return;
@@ -45,6 +48,8 @@ export default function SchoolMajorsPages({ mode = "list" }) {
     })();
   }, [school?.id, showList]);
 
+  // 负责读取当前页面所需的数据，并把结果同步到 state 中。
+  // 跟读这个函数时，建议同时留意它依赖了哪些 state/ref，以及执行后会触发哪些界面刷新。
   async function loadMajors(nextDeptId = deptId, nextKeyword = keyword) {
     if (!nextDeptId) {
       setMajors([]);
@@ -63,6 +68,8 @@ export default function SchoolMajorsPages({ mode = "list" }) {
     }
   }
 
+  // 负责处理当前页面的提交型交互，并在成功后刷新界面状态。
+  // 跟读这个函数时，建议同时留意它依赖了哪些 state/ref，以及执行后会触发哪些界面刷新。
   async function onFinish(values) {
     const name = values.major?.trim();
     if (!deptId || !name) return;
@@ -79,6 +86,8 @@ export default function SchoolMajorsPages({ mode = "list" }) {
     }
   }
 
+  // 负责处理当前页面的提交型交互，并在成功后刷新界面状态。
+  // 跟读这个函数时，建议同时留意它依赖了哪些 state/ref，以及执行后会触发哪些界面刷新。
   function openEdit(record) {
     setEditingMajor(record);
     editForm.setFieldsValue({
@@ -88,6 +97,8 @@ export default function SchoolMajorsPages({ mode = "list" }) {
     setEditOpen(true);
   }
 
+  // 负责处理当前页面的提交型交互，并在成功后刷新界面状态。
+  // 跟读这个函数时，建议同时留意它依赖了哪些 state/ref，以及执行后会触发哪些界面刷新。
   async function submitEdit(values) {
     if (!editingMajor?.id) return;
     setSaving(true);
@@ -107,6 +118,8 @@ export default function SchoolMajorsPages({ mode = "list" }) {
     }
   }
 
+  // 负责切换界面状态或执行带副作用的收尾动作。
+  // 跟读这个函数时，建议同时留意它依赖了哪些 state/ref，以及执行后会触发哪些界面刷新。
   async function removeMajor(record) {
     try {
       await api.delete(`/school/${school.id}/majors/${record.id}`);
@@ -117,6 +130,8 @@ export default function SchoolMajorsPages({ mode = "list" }) {
     }
   }
 
+  // 表格列配置集中描述了当前页面最核心的展示字段和每列的交互行为。
+  // 如果你想理解页面允许用户做什么，优先看这里的 render、按钮和状态标签。
   const columns = [
     {
       title: tr("所属学院"),

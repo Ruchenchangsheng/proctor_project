@@ -31,6 +31,9 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
+/**
+ * SchoolAdminController 负责学校管理员端的组织、人员、考试和策略管理接口。
+ */
 
 @RestController
 @RequestMapping("/api/school")
@@ -57,6 +60,10 @@ public class SchoolAdminController {
 
     private final AnomalyPolicyService anomalyPolicyService;
 
+    /**
+     * 封装当前类中的一段独立业务步骤，减少调用方直接处理过多细节。
+     * 阅读这个方法时，可以重点关注它读取了哪些输入、修改了哪些状态，以及异常或边界条件如何处理。
+     */
     @GetMapping("/my")
     @PreAuthorize("hasRole('SCHOOL_ADMIN')")
     public SchoolEntity mySchool(@AuthenticationPrincipal UserDetailsImpl u) {
@@ -64,6 +71,10 @@ public class SchoolAdminController {
         return p == null ? null : sm.selectById(p.getSchoolId());
     }
 
+    /**
+     * 读取或查询当前业务场景下需要的数据。
+     * 阅读这个方法时，可以重点关注它读取了哪些输入、修改了哪些状态，以及异常或边界条件如何处理。
+     */
     @GetMapping("/{schoolId}/departments")
     @PreAuthorize("hasRole('SCHOOL_ADMIN')")
     public List<DepartmentEntity> listDepts(
@@ -77,6 +88,10 @@ public class SchoolAdminController {
                 .orderByDesc(DepartmentEntity::getId));
     }
 
+    /**
+     * 读取或查询当前业务场景下需要的数据。
+     * 阅读这个方法时，可以重点关注它读取了哪些输入、修改了哪些状态，以及异常或边界条件如何处理。
+     */
     @GetMapping("/{schoolId}/majors")
     @PreAuthorize("hasRole('SCHOOL_ADMIN')")
     public List<MajorEntity> listMajors(
@@ -92,6 +107,10 @@ public class SchoolAdminController {
                 .orderByDesc(MajorEntity::getId));
     }
 
+    /**
+     * 读取或查询当前业务场景下需要的数据。
+     * 阅读这个方法时，可以重点关注它读取了哪些输入、修改了哪些状态，以及异常或边界条件如何处理。
+     */
     @GetMapping("/{schoolId}/teachers")
     @PreAuthorize("hasRole('SCHOOL_ADMIN')")
     public List<Map<String, Object>> listTeachers(
@@ -104,6 +123,10 @@ public class SchoolAdminController {
         return teacherMapper.selectTeachersBySchool(schoolId, departmentId, majorId, trimToNull(keyword));
     }
 
+    /**
+     * 读取或查询当前业务场景下需要的数据。
+     * 阅读这个方法时，可以重点关注它读取了哪些输入、修改了哪些状态，以及异常或边界条件如何处理。
+     */
     @GetMapping("/{schoolId}/students")
     @PreAuthorize("hasRole('SCHOOL_ADMIN')")
     public List<Map<String, Object>> listStudents(
@@ -116,6 +139,10 @@ public class SchoolAdminController {
         return studentMapper.selectStudentsBySchool(schoolId, departmentId, majorId, trimToNull(keyword));
     }
 
+    /**
+     * 创建并组装当前业务对象或执行一段创建型流程。
+     * 阅读这个方法时，可以重点关注它读取了哪些输入、修改了哪些状态，以及异常或边界条件如何处理。
+     */
     @PostMapping("/{schoolId}/departments")
     @PreAuthorize("hasRole('SCHOOL_ADMIN')")
     public Map<String, Object> createDept(
@@ -130,6 +157,10 @@ public class SchoolAdminController {
         return Map.of("departmentId", d.getId());
     }
 
+    /**
+     * 创建并组装当前业务对象或执行一段创建型流程。
+     * 阅读这个方法时，可以重点关注它读取了哪些输入、修改了哪些状态，以及异常或边界条件如何处理。
+     */
     @PostMapping("/{schoolId}/majors")
     @PreAuthorize("hasRole('SCHOOL_ADMIN')")
     public Map<String, Object> createMajor(
@@ -145,6 +176,10 @@ public class SchoolAdminController {
         return Map.of("majorId", m.getId());
     }
 
+    /**
+     * 创建并组装当前业务对象或执行一段创建型流程。
+     * 阅读这个方法时，可以重点关注它读取了哪些输入、修改了哪些状态，以及异常或边界条件如何处理。
+     */
     @PostMapping("/{schoolId}/teachers")
     @PreAuthorize("hasRole('SCHOOL_ADMIN')")
     @Transactional
@@ -176,6 +211,10 @@ public class SchoolAdminController {
         return Map.of("userId", user.getId());
     }
 
+    /**
+     * 封装当前类中的一段独立业务步骤，减少调用方直接处理过多细节。
+     * 阅读这个方法时，可以重点关注它读取了哪些输入、修改了哪些状态，以及异常或边界条件如何处理。
+     */
     @PostMapping(value = "/{schoolId}/teachers/import", consumes = "multipart/form-data")
     @PreAuthorize("hasRole('SCHOOL_ADMIN')")
     public Map<String, Object> importTeachers(
@@ -202,6 +241,10 @@ public class SchoolAdminController {
         return Map.of("ok", true, "successCount", successCount, "failureCount", failures.size(), "failures", failures);
     }
 
+    /**
+     * 创建并组装当前业务对象或执行一段创建型流程。
+     * 阅读这个方法时，可以重点关注它读取了哪些输入、修改了哪些状态，以及异常或边界条件如何处理。
+     */
     @PostMapping(value = "/{schoolId}/students", consumes = "multipart/form-data")
     @PreAuthorize("hasRole('SCHOOL_ADMIN')")
     @Transactional
@@ -248,6 +291,10 @@ public class SchoolAdminController {
         return Map.of("userId", user.getId());
     }
 
+    /**
+     * 封装当前类中的一段独立业务步骤，减少调用方直接处理过多细节。
+     * 阅读这个方法时，可以重点关注它读取了哪些输入、修改了哪些状态，以及异常或边界条件如何处理。
+     */
     @PostMapping(value = "/{schoolId}/students/import", consumes = "multipart/form-data")
     @PreAuthorize("hasRole('SCHOOL_ADMIN')")
     public Map<String, Object> importStudents(
@@ -280,6 +327,10 @@ public class SchoolAdminController {
         return Map.of("ok", true, "successCount", successCount, "failureCount", failures.size(), "failures", failures);
     }
 
+    /**
+     * 读取或查询当前业务场景下需要的数据。
+     * 阅读这个方法时，可以重点关注它读取了哪些输入、修改了哪些状态，以及异常或边界条件如何处理。
+     */
     @GetMapping("/{schoolId}/anomaly-policy")
     @PreAuthorize("hasRole('SCHOOL_ADMIN')")
     public Map<String, Object> getAnomalyPolicy(
@@ -293,6 +344,10 @@ public class SchoolAdminController {
         return Map.of("ok", true, "policy", anomalyPolicyService.asMap(policy));
     }
 
+    /**
+     * 更新当前业务状态，并把变更写回数据库、内存或界面状态。
+     * 阅读这个方法时，可以重点关注它读取了哪些输入、修改了哪些状态，以及异常或边界条件如何处理。
+     */
     @PutMapping("/{schoolId}/anomaly-policy")
     @PreAuthorize("hasRole('SCHOOL_ADMIN')")
     public Map<String, Object> updateAnomalyPolicy(
@@ -307,6 +362,10 @@ public class SchoolAdminController {
         return Map.of("ok", true, "policy", anomalyPolicyService.asMap(policy));
     }
 
+    /**
+     * 创建并组装当前业务对象或执行一段创建型流程。
+     * 阅读这个方法时，可以重点关注它读取了哪些输入、修改了哪些状态，以及异常或边界条件如何处理。
+     */
     @PostMapping("/{schoolId}/exams")
     @PreAuthorize("hasRole('SCHOOL_ADMIN')")
     public Map<String, Object> createExam(
@@ -319,6 +378,10 @@ public class SchoolAdminController {
         return result;
     }
 
+    /**
+     * 读取或查询当前业务场景下需要的数据。
+     * 阅读这个方法时，可以重点关注它读取了哪些输入、修改了哪些状态，以及异常或边界条件如何处理。
+     */
     @GetMapping("/{schoolId}/exams")
     @PreAuthorize("hasRole('SCHOOL_ADMIN')")
     public List<Map<String, Object>> listExams(
@@ -332,6 +395,10 @@ public class SchoolAdminController {
         return examArrangeService.listExams(schoolId, departmentId, majorId, keyword, status);
     }
 
+    /**
+     * 读取或查询当前业务场景下需要的数据。
+     * 阅读这个方法时，可以重点关注它读取了哪些输入、修改了哪些状态，以及异常或边界条件如何处理。
+     */
     @GetMapping("/{schoolId}/exams/{examId}/rooms")
     @PreAuthorize("hasRole('SCHOOL_ADMIN')")
     public List<Map<String, Object>> listExamRooms(
@@ -342,6 +409,10 @@ public class SchoolAdminController {
         return examArrangeService.listExamRooms(examId);
     }
 
+    /**
+     * 封装当前类中的一段独立业务步骤，减少调用方直接处理过多细节。
+     * 阅读这个方法时，可以重点关注它读取了哪些输入、修改了哪些状态，以及异常或边界条件如何处理。
+     */
     @GetMapping(value = "/{schoolId}/exams/{examId}/results/export", produces = "text/csv")
     @PreAuthorize("hasRole('SCHOOL_ADMIN')")
     public ResponseEntity<String> exportExamResults(
@@ -374,6 +445,10 @@ public class SchoolAdminController {
                 .body(csv.toString());
     }
 
+    /**
+     * 更新当前业务状态，并把变更写回数据库、内存或界面状态。
+     * 阅读这个方法时，可以重点关注它读取了哪些输入、修改了哪些状态，以及异常或边界条件如何处理。
+     */
     @PutMapping("/{schoolId}/departments/{departmentId}")
     @PreAuthorize("hasRole('SCHOOL_ADMIN')")
     public Map<String, Object> updateDept(
@@ -388,6 +463,10 @@ public class SchoolAdminController {
         return Map.of("ok", true);
     }
 
+    /**
+     * 执行删除、重置或状态切换操作，并处理随后的收尾动作。
+     * 阅读这个方法时，可以重点关注它读取了哪些输入、修改了哪些状态，以及异常或边界条件如何处理。
+     */
     @DeleteMapping("/{schoolId}/departments/{departmentId}")
     @PreAuthorize("hasRole('SCHOOL_ADMIN')")
     public Map<String, Object> deleteDept(
@@ -412,6 +491,10 @@ public class SchoolAdminController {
         return Map.of("ok", true);
     }
 
+    /**
+     * 更新当前业务状态，并把变更写回数据库、内存或界面状态。
+     * 阅读这个方法时，可以重点关注它读取了哪些输入、修改了哪些状态，以及异常或边界条件如何处理。
+     */
     @PutMapping("/{schoolId}/majors/{majorId}")
     @PreAuthorize("hasRole('SCHOOL_ADMIN')")
     public Map<String, Object> updateMajor(
@@ -430,6 +513,10 @@ public class SchoolAdminController {
         return Map.of("ok", true);
     }
 
+    /**
+     * 执行删除、重置或状态切换操作，并处理随后的收尾动作。
+     * 阅读这个方法时，可以重点关注它读取了哪些输入、修改了哪些状态，以及异常或边界条件如何处理。
+     */
     @DeleteMapping("/{schoolId}/majors/{majorId}")
     @PreAuthorize("hasRole('SCHOOL_ADMIN')")
     public Map<String, Object> deleteMajor(
@@ -451,6 +538,10 @@ public class SchoolAdminController {
         return Map.of("ok", true);
     }
 
+    /**
+     * 更新当前业务状态，并把变更写回数据库、内存或界面状态。
+     * 阅读这个方法时，可以重点关注它读取了哪些输入、修改了哪些状态，以及异常或边界条件如何处理。
+     */
     @PutMapping("/{schoolId}/teachers/{teacherUserId}")
     @PreAuthorize("hasRole('SCHOOL_ADMIN')")
     @Transactional
@@ -475,6 +566,10 @@ public class SchoolAdminController {
         return Map.of("ok", true);
     }
 
+    /**
+     * 执行删除、重置或状态切换操作，并处理随后的收尾动作。
+     * 阅读这个方法时，可以重点关注它读取了哪些输入、修改了哪些状态，以及异常或边界条件如何处理。
+     */
     @PostMapping("/{schoolId}/teachers/{teacherUserId}/toggle-enabled")
     @PreAuthorize("hasRole('SCHOOL_ADMIN')")
     public Map<String, Object> toggleTeacherEnabled(
@@ -489,6 +584,10 @@ public class SchoolAdminController {
         return result;
     }
 
+    /**
+     * 执行删除、重置或状态切换操作，并处理随后的收尾动作。
+     * 阅读这个方法时，可以重点关注它读取了哪些输入、修改了哪些状态，以及异常或边界条件如何处理。
+     */
     @PostMapping("/{schoolId}/teachers/{teacherUserId}/reset-password")
     @PreAuthorize("hasRole('SCHOOL_ADMIN')")
     public Map<String, Object> resetTeacherPassword(
@@ -502,6 +601,10 @@ public class SchoolAdminController {
         return result;
     }
 
+    /**
+     * 执行删除、重置或状态切换操作，并处理随后的收尾动作。
+     * 阅读这个方法时，可以重点关注它读取了哪些输入、修改了哪些状态，以及异常或边界条件如何处理。
+     */
     @DeleteMapping("/{schoolId}/teachers/{teacherUserId}")
     @PreAuthorize("hasRole('SCHOOL_ADMIN')")
     @Transactional
@@ -521,6 +624,10 @@ public class SchoolAdminController {
         return Map.of("ok", true);
     }
 
+    /**
+     * 更新当前业务状态，并把变更写回数据库、内存或界面状态。
+     * 阅读这个方法时，可以重点关注它读取了哪些输入、修改了哪些状态，以及异常或边界条件如何处理。
+     */
     @PutMapping(value = "/{schoolId}/students/{studentUserId}", consumes = "multipart/form-data")
     @PreAuthorize("hasRole('SCHOOL_ADMIN')")
     @Transactional
@@ -562,6 +669,10 @@ public class SchoolAdminController {
         return Map.of("ok", true);
     }
 
+    /**
+     * 执行删除、重置或状态切换操作，并处理随后的收尾动作。
+     * 阅读这个方法时，可以重点关注它读取了哪些输入、修改了哪些状态，以及异常或边界条件如何处理。
+     */
     @PostMapping("/{schoolId}/students/{studentUserId}/toggle-enabled")
     @PreAuthorize("hasRole('SCHOOL_ADMIN')")
     public Map<String, Object> toggleStudentEnabled(
@@ -576,6 +687,10 @@ public class SchoolAdminController {
         return result;
     }
 
+    /**
+     * 执行删除、重置或状态切换操作，并处理随后的收尾动作。
+     * 阅读这个方法时，可以重点关注它读取了哪些输入、修改了哪些状态，以及异常或边界条件如何处理。
+     */
     @PostMapping("/{schoolId}/students/{studentUserId}/reset-password")
     @PreAuthorize("hasRole('SCHOOL_ADMIN')")
     public Map<String, Object> resetStudentPassword(
@@ -589,6 +704,10 @@ public class SchoolAdminController {
         return result;
     }
 
+    /**
+     * 执行删除、重置或状态切换操作，并处理随后的收尾动作。
+     * 阅读这个方法时，可以重点关注它读取了哪些输入、修改了哪些状态，以及异常或边界条件如何处理。
+     */
     @DeleteMapping("/{schoolId}/students/{studentUserId}")
     @PreAuthorize("hasRole('SCHOOL_ADMIN')")
     @Transactional
@@ -608,6 +727,10 @@ public class SchoolAdminController {
         return Map.of("ok", true);
     }
 
+    /**
+     * 更新当前业务状态，并把变更写回数据库、内存或界面状态。
+     * 阅读这个方法时，可以重点关注它读取了哪些输入、修改了哪些状态，以及异常或边界条件如何处理。
+     */
     @PutMapping("/{schoolId}/exams/{examId}")
     @PreAuthorize("hasRole('SCHOOL_ADMIN')")
     public Map<String, Object> updateExam(
@@ -621,6 +744,10 @@ public class SchoolAdminController {
         return result;
     }
 
+    /**
+     * 执行删除、重置或状态切换操作，并处理随后的收尾动作。
+     * 阅读这个方法时，可以重点关注它读取了哪些输入、修改了哪些状态，以及异常或边界条件如何处理。
+     */
     @DeleteMapping("/{schoolId}/exams/{examId}")
     @PreAuthorize("hasRole('SCHOOL_ADMIN')")
     public Map<String, Object> deleteExam(
@@ -633,6 +760,10 @@ public class SchoolAdminController {
         return Map.of("ok", true);
     }
 
+    /**
+     * 执行前置校验或条件判断，为后续主流程提供可靠分支依据。
+     * 阅读这个方法时，可以重点关注它读取了哪些输入、修改了哪些状态，以及异常或边界条件如何处理。
+     */
     private void ensureSchoolAccess(Long schoolId, UserDetailsImpl u) {
         var admin = sap.selectById(u.getId());
         if (admin == null || !Objects.equals(admin.getSchoolId(), schoolId)) {
@@ -640,6 +771,10 @@ public class SchoolAdminController {
         }
     }
 
+    /**
+     * 执行前置校验或条件判断，为后续主流程提供可靠分支依据。
+     * 阅读这个方法时，可以重点关注它读取了哪些输入、修改了哪些状态，以及异常或边界条件如何处理。
+     */
     private DepartmentEntity requireDepartment(Long schoolId, Long departmentId) {
         DepartmentEntity department = dm.selectById(departmentId);
         if (department == null || !Objects.equals(department.getSchoolId(), schoolId)) {
@@ -648,6 +783,10 @@ public class SchoolAdminController {
         return department;
     }
 
+    /**
+     * 执行前置校验或条件判断，为后续主流程提供可靠分支依据。
+     * 阅读这个方法时，可以重点关注它读取了哪些输入、修改了哪些状态，以及异常或边界条件如何处理。
+     */
     private MajorEntity requireMajor(Long schoolId, Long majorId) {
         MajorEntity major = mm.selectById(majorId);
         if (major == null) {
@@ -660,6 +799,10 @@ public class SchoolAdminController {
         return major;
     }
 
+    /**
+     * 执行前置校验或条件判断，为后续主流程提供可靠分支依据。
+     * 阅读这个方法时，可以重点关注它读取了哪些输入、修改了哪些状态，以及异常或边界条件如何处理。
+     */
     private TeacherEntity requireTeacher(Long schoolId, Long teacherUserId) {
         TeacherEntity teacher = tp.selectById(teacherUserId);
         if (teacher == null || !Objects.equals(teacher.getSchoolId(), schoolId)) {
@@ -668,6 +811,10 @@ public class SchoolAdminController {
         return teacher;
     }
 
+    /**
+     * 执行前置校验或条件判断，为后续主流程提供可靠分支依据。
+     * 阅读这个方法时，可以重点关注它读取了哪些输入、修改了哪些状态，以及异常或边界条件如何处理。
+     */
     private StudentEntity requireStudent(Long schoolId, Long studentUserId) {
         StudentEntity student = sp.selectById(studentUserId);
         if (student == null || !Objects.equals(student.getSchoolId(), schoolId)) {
@@ -676,6 +823,10 @@ public class SchoolAdminController {
         return student;
     }
 
+    /**
+     * 执行前置校验或条件判断，为后续主流程提供可靠分支依据。
+     * 阅读这个方法时，可以重点关注它读取了哪些输入、修改了哪些状态，以及异常或边界条件如何处理。
+     */
     private UserEntity requireUser(Long userId, String message) {
         UserEntity user = um.selectById(userId);
         if (user == null) {
@@ -684,6 +835,10 @@ public class SchoolAdminController {
         return user;
     }
 
+    /**
+     * 执行删除、重置或状态切换操作，并处理随后的收尾动作。
+     * 阅读这个方法时，可以重点关注它读取了哪些输入、修改了哪些状态，以及异常或边界条件如何处理。
+     */
     private Map<String, Object> toggleManagedUserEnabled(Long userId, boolean enabled) {
         UserEntity user = requireUser(userId, "账号不存在");
         um.update(null, new LambdaUpdateWrapper<UserEntity>()
@@ -692,6 +847,10 @@ public class SchoolAdminController {
         return Map.of("ok", true, "enabled", enabled, "name", user.getName());
     }
 
+    /**
+     * 执行删除、重置或状态切换操作，并处理随后的收尾动作。
+     * 阅读这个方法时，可以重点关注它读取了哪些输入、修改了哪些状态，以及异常或边界条件如何处理。
+     */
     private Map<String, Object> resetPasswordForUser(Long userId) {
         UserEntity user = requireUser(userId, "账号不存在");
         String rawPwd = gen.gen6();
@@ -705,6 +864,10 @@ public class SchoolAdminController {
         return Map.of("ok", true, "mailSent", mailSent, "tempPassword", rawPwd);
     }
 
+    /**
+     * 创建并组装当前业务对象或执行一段创建型流程。
+     * 阅读这个方法时，可以重点关注它读取了哪些输入、修改了哪些状态，以及异常或边界条件如何处理。
+     */
     private Long createTeacherAccount(Long schoolId, String email, String name, Long departmentId, Long majorId) {
         if (um.selectOne(new LambdaQueryWrapper<UserEntity>().eq(UserEntity::getEmail, email)) != null) {
             throw new BusinessException("EMAIL_EXISTS", "邮箱已存在：" + email);
@@ -729,6 +892,10 @@ public class SchoolAdminController {
         return user.getId();
     }
 
+    /**
+     * 创建并组装当前业务对象或执行一段创建型流程。
+     * 阅读这个方法时，可以重点关注它读取了哪些输入、修改了哪些状态，以及异常或边界条件如何处理。
+     */
     private Long createStudentAccount(Long schoolId, String email, String name, Long departmentId, Long majorId, String photoFileName, byte[] photoBytes) throws Exception {
         if (um.selectOne(new LambdaQueryWrapper<UserEntity>().eq(UserEntity::getEmail, email)) != null) {
             throw new BusinessException("EMAIL_EXISTS", "邮箱已存在：" + email);
@@ -764,6 +931,10 @@ public class SchoolAdminController {
         return user.getId();
     }
 
+    /**
+     * 执行前置校验或条件判断，为后续主流程提供可靠分支依据。
+     * 阅读这个方法时，可以重点关注它读取了哪些输入、修改了哪些状态，以及异常或边界条件如何处理。
+     */
     private DepartmentEntity requireDepartmentByName(Long schoolId, String departmentName) {
         String name = requireName(departmentName, "学院名称不能为空");
         DepartmentEntity department = dm.selectOne(new LambdaQueryWrapper<DepartmentEntity>()
@@ -776,6 +947,10 @@ public class SchoolAdminController {
         return department;
     }
 
+    /**
+     * 执行前置校验或条件判断，为后续主流程提供可靠分支依据。
+     * 阅读这个方法时，可以重点关注它读取了哪些输入、修改了哪些状态，以及异常或边界条件如何处理。
+     */
     private MajorEntity requireMajorByName(Long schoolId, Long departmentId, String majorName) {
         String name = requireName(majorName, "专业名称不能为空");
         MajorEntity major = mm.selectOne(new LambdaQueryWrapper<MajorEntity>()
@@ -789,6 +964,10 @@ public class SchoolAdminController {
         return major;
     }
 
+    /**
+     * 封装当前类中的一段独立业务步骤，减少调用方直接处理过多细节。
+     * 阅读这个方法时，可以重点关注它读取了哪些输入、修改了哪些状态，以及异常或边界条件如何处理。
+     */
     private byte[] resolvePhotoBytes(BulkImportSupportService.ZipBundle bundle, String photoFileName) {
         String name = trimToNull(photoFileName);
         if (name == null) {
@@ -805,6 +984,10 @@ public class SchoolAdminController {
                 .orElseThrow(() -> new BusinessException("BAD_REQUEST", "压缩包中未找到照片文件：" + name));
     }
 
+    /**
+     * 封装当前类中的一段独立业务步骤，减少调用方直接处理过多细节。
+     * 阅读这个方法时，可以重点关注它读取了哪些输入、修改了哪些状态，以及异常或边界条件如何处理。
+     */
     private String guessImageMime(String fileName) {
         String lower = fileName == null ? "" : fileName.toLowerCase(Locale.ROOT);
         if (lower.endsWith(".png")) {
@@ -816,15 +999,27 @@ public class SchoolAdminController {
         return "image/jpeg";
     }
 
+    /**
+     * 封装当前类中的一段独立业务步骤，减少调用方直接处理过多细节。
+     * 阅读这个方法时，可以重点关注它读取了哪些输入、修改了哪些状态，以及异常或边界条件如何处理。
+     */
     private String csv(Object value) {
         String text = value == null ? "" : String.valueOf(value).replace("\"", "\"\"");
         return "\"" + text + "\"";
     }
 
+    /**
+     * 执行前置校验或条件判断，为后续主流程提供可靠分支依据。
+     * 阅读这个方法时，可以重点关注它读取了哪些输入、修改了哪些状态，以及异常或边界条件如何处理。
+     */
     private boolean hasText(String value) {
         return value != null && !value.trim().isEmpty();
     }
 
+    /**
+     * 执行前置校验或条件判断，为后续主流程提供可靠分支依据。
+     * 阅读这个方法时，可以重点关注它读取了哪些输入、修改了哪些状态，以及异常或边界条件如何处理。
+     */
     private String requireName(String value, String message) {
         String text = trimToNull(value);
         if (text == null) {

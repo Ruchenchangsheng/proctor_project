@@ -1,3 +1,4 @@
+// AdminExamsPage 展示平台范围内的考试统计与列表，便于管理员做全局巡检。
 import { useEffect, useMemo, useState } from "react";
 import { api } from "../../apiClient";
 import { Button, Card, Input, Modal, Select, Space, Statistic, Table, Tag, Typography, message } from "antd";
@@ -29,10 +30,14 @@ export default function AdminExamsPage() {
   const [selectedExam, setSelectedExam] = useState(null);
   const [evidenceItems, setEvidenceItems] = useState([]);
 
+  // 这个 effect 负责在依赖变化时同步加载数据或建立/释放副作用。
+  // 阅读时可以重点看依赖数组、内部异步流程以及 return 清理逻辑三部分。
   useEffect(() => {
     initialize();
   }, []);
 
+  // 负责读取当前页面所需的数据，并把结果同步到 state 中。
+  // 跟读这个函数时，建议同时留意它依赖了哪些 state/ref，以及执行后会触发哪些界面刷新。
   async function initialize() {
     try {
       const [schoolResp, evidenceResp] = await Promise.all([
@@ -47,6 +52,8 @@ export default function AdminExamsPage() {
     }
   }
 
+  // 负责读取当前页面所需的数据，并把结果同步到 state 中。
+  // 跟读这个函数时，建议同时留意它依赖了哪些 state/ref，以及执行后会触发哪些界面刷新。
   async function load(nextFilters = filters) {
     setLoading(true);
     try {
@@ -89,6 +96,8 @@ export default function AdminExamsPage() {
     return [...grouped.entries()].sort((a, b) => b[1] - a[1]).slice(0, 6);
   }, [evidenceItems, list]);
 
+  // 负责把页面中的一段独立交互逻辑拆出来，避免主组件渲染区混入过多细节。
+  // 跟读这个函数时，建议同时留意它依赖了哪些 state/ref，以及执行后会触发哪些界面刷新。
   async function viewRooms(record) {
     try {
       const r = await api.get(`/admin/exams/${record.id}/rooms`);

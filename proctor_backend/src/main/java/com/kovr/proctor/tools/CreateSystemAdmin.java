@@ -11,20 +11,14 @@ import java.time.LocalDateTime;
 import java.util.Properties;
 
 /**
- * 独立运行：创建或重置系统管理员账号（role=ADMIN）。
- *
- * 运行方式（在 proctor_backend 目录）：
- * 1) 先编译：mvn -DskipTests compile
- * 2) 执行：
- *    java -cp "target/classes:target/dependency/*" com.kovr.proctor.tools.CreateSystemAdmin admin@example.com "系统管理员" "Admin@123456"
- *
- * 可选参数：
- *   args[0] 邮箱（默认：admin@proctor.local）
- *   args[1] 姓名（默认：系统管理员）
- *   args[2] 明文密码（默认：Admin@123456）
+ * CreateSystemAdmin 提供初始化系统管理员账号的命令行工具。
  */
 public class CreateSystemAdmin {
 
+    /**
+     * 封装当前类中的一段独立业务步骤，减少调用方直接处理过多细节。
+     * 阅读这个方法时，可以重点关注它读取了哪些输入、修改了哪些状态，以及异常或边界条件如何处理。
+     */
     public static void main(String[] args) throws Exception {
         String email = argOrDefault(args, 0, "admin@sys.com").trim();
         String name = argOrDefault(args, 1, "系统管理员").trim();
@@ -63,12 +57,20 @@ public class CreateSystemAdmin {
         System.out.println("提示：请首次登录后立即修改密码。\n");
     }
 
+    /**
+     * 封装当前类中的一段独立业务步骤，减少调用方直接处理过多细节。
+     * 阅读这个方法时，可以重点关注它读取了哪些输入、修改了哪些状态，以及异常或边界条件如何处理。
+     */
     private static String argOrDefault(String[] args, int idx, String def) {
         if (args == null || args.length <= idx || args[idx] == null) return def;
         String value = args[idx].trim();
         return value.isEmpty() ? def : value;
     }
 
+    /**
+     * 读取或查询当前业务场景下需要的数据。
+     * 阅读这个方法时，可以重点关注它读取了哪些输入、修改了哪些状态，以及异常或边界条件如何处理。
+     */
     private static Properties loadAppProperties() throws Exception {
         Properties p = new Properties();
         try (InputStream in = CreateSystemAdmin.class.getClassLoader().getResourceAsStream("application.properties")) {
@@ -80,6 +82,10 @@ public class CreateSystemAdmin {
         return p;
     }
 
+    /**
+     * 执行前置校验或条件判断，为后续主流程提供可靠分支依据。
+     * 阅读这个方法时，可以重点关注它读取了哪些输入、修改了哪些状态，以及异常或边界条件如何处理。
+     */
     private static String require(Properties p, String key) {
         String value = p.getProperty(key);
         if (value == null || value.trim().isEmpty()) {
@@ -88,6 +94,10 @@ public class CreateSystemAdmin {
         return value.trim();
     }
 
+    /**
+     * 读取或查询当前业务场景下需要的数据。
+     * 阅读这个方法时，可以重点关注它读取了哪些输入、修改了哪些状态，以及异常或边界条件如何处理。
+     */
     private static Long findUserIdByEmail(Connection conn, String email) throws Exception {
         String sql = "select id from users where email = ? limit 1";
         try (PreparedStatement ps = conn.prepareStatement(sql)) {
@@ -98,6 +108,10 @@ public class CreateSystemAdmin {
         }
     }
 
+    /**
+     * 创建并组装当前业务对象或执行一段创建型流程。
+     * 阅读这个方法时，可以重点关注它读取了哪些输入、修改了哪些状态，以及异常或边界条件如何处理。
+     */
     private static void insertAdmin(Connection conn, String email, String encodedPassword, String name) throws Exception {
         String sql = "insert into users(email, password, name, role, enabled, created_at, updated_at) values (?, ?, ?, 'ADMIN', 1, ?, ?)";
         LocalDateTime now = LocalDateTime.now();
@@ -111,6 +125,10 @@ public class CreateSystemAdmin {
         }
     }
 
+    /**
+     * 更新当前业务状态，并把变更写回数据库、内存或界面状态。
+     * 阅读这个方法时，可以重点关注它读取了哪些输入、修改了哪些状态，以及异常或边界条件如何处理。
+     */
     private static void updateAdmin(Connection conn, Long userId, String encodedPassword, String name) throws Exception {
         String sql = "update users set password = ?, name = ?, role = 'ADMIN', enabled = 1, updated_at = ? where id = ?";
         try (PreparedStatement ps = conn.prepareStatement(sql)) {

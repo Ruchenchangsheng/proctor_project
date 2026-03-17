@@ -26,6 +26,9 @@ import java.util.Base64;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+/**
+ * TeacherController 提供教师监考任务、实时告警和证据查询等接口。
+ */
 
 @RestController
 @RequestMapping("/api/teacher")
@@ -41,6 +44,10 @@ public class TeacherController {
     private final AnomalyPolicyService anomalyPolicyService;
     private final AnomalyEvidenceService anomalyEvidenceService;
 
+    /**
+     * 封装当前类中的一段独立业务步骤，减少调用方直接处理过多细节。
+     * 阅读这个方法时，可以重点关注它读取了哪些输入、修改了哪些状态，以及异常或边界条件如何处理。
+     */
     @GetMapping("/profile")
     @PreAuthorize("hasRole('TEACHER')")
     public Map<String, Object> profile(@AuthenticationPrincipal UserDetailsImpl u) {
@@ -56,11 +63,16 @@ public class TeacherController {
         return m;
     }
 
+    /**
+     * 封装当前类中的一段独立业务步骤，减少调用方直接处理过多细节。
+     * 阅读这个方法时，可以重点关注它读取了哪些输入、修改了哪些状态，以及异常或边界条件如何处理。
+     */
     @GetMapping("/invigilations")
     @PreAuthorize("hasRole('TEACHER')")
     public List<Map<String, Object>> invigilations(
             @AuthenticationPrincipal UserDetailsImpl u,
             @RequestParam(required = false) String phase) {
+        // 教师任务列表除了房间基本信息，还会预取学生清单，方便前端直接渲染任务卡片。
         List<Map<String, Object>> rows = examRoomMapper.selectInvigilationsByTeacher(u.getId(), phase);
         List<Map<String, Object>> result = new ArrayList<>();
         for (Map<String, Object> row : rows) {
@@ -77,6 +89,10 @@ public class TeacherController {
     }
 
 
+    /**
+     * 封装当前类中的一段独立业务步骤，减少调用方直接处理过多细节。
+     * 阅读这个方法时，可以重点关注它读取了哪些输入、修改了哪些状态，以及异常或边界条件如何处理。
+     */
     @GetMapping("/rooms/{examRoomId}/students")
     @PreAuthorize("hasRole('TEACHER')")
     public Map<String, Object> roomStudents(
@@ -90,11 +106,16 @@ public class TeacherController {
     }
 
 
+    /**
+     * 封装当前类中的一段独立业务步骤，减少调用方直接处理过多细节。
+     * 阅读这个方法时，可以重点关注它读取了哪些输入、修改了哪些状态，以及异常或边界条件如何处理。
+     */
     @GetMapping("/rooms/{examRoomId}/alerts")
     @PreAuthorize("hasRole('TEACHER')")
     public Map<String, Object> roomAlerts(
             @AuthenticationPrincipal UserDetailsImpl u,
             @PathVariable Long examRoomId) {
+        // 告警接口把“当前仍在持续的异常”和“已结束但需回放的异常证据”一起返回给监考页。
         Map<String, Object> room = examRoomMapper.selectOwnedRoomByTeacher(examRoomId, u.getId());
         if (room == null) {
             return Map.of("ok", false, "msg", "未找到该监考房间或无权限");
@@ -125,6 +146,7 @@ public class TeacherController {
     public Map<String, Object> roomLive(
             @AuthenticationPrincipal UserDetailsImpl u,
             @PathVariable Long examRoomId) {
+        // live 接口只返回已经有最新帧的学生，未入场学生不占用教师端监考宫格。
         Map<String, Object> room = examRoomMapper.selectOwnedRoomByTeacher(examRoomId, u.getId());
         if (room == null) {
             return Map.of("ok", false, "msg", "未找到该监考房间或无权限");

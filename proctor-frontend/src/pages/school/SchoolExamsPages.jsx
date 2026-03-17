@@ -1,3 +1,4 @@
+// SchoolExamsPages 展示学校已创建考试及其运行状态，是考试管理总览页。
 import { useEffect, useState } from "react";
 import { useOutletContext } from "react-router-dom";
 import { Button, Card, Input, Modal, Popconfirm, Select, Space, Table, Tag, Typography, message, Form } from "antd";
@@ -41,11 +42,15 @@ export default function SchoolExamsPages() {
   const [saving, setSaving] = useState(false);
   const [editForm] = Form.useForm();
 
+  // 这个 effect 负责在依赖变化时同步加载数据或建立/释放副作用。
+  // 阅读时可以重点看依赖数组、内部异步流程以及 return 清理逻辑三部分。
   useEffect(() => {
     if (!school?.id) return;
     initialize();
   }, [school?.id]);
 
+  // 负责读取当前页面所需的数据，并把结果同步到 state 中。
+  // 跟读这个函数时，建议同时留意它依赖了哪些 state/ref，以及执行后会触发哪些界面刷新。
   async function initialize() {
     try {
       const [deptResp, evidenceResp] = await Promise.all([
@@ -76,12 +81,16 @@ export default function SchoolExamsPages() {
     }
   }
 
+  // 负责读取当前页面所需的数据，并把结果同步到 state 中。
+  // 跟读这个函数时，建议同时留意它依赖了哪些 state/ref，以及执行后会触发哪些界面刷新。
   async function fetchMajors(departmentId) {
     if (!departmentId) return [];
     const r = await api.get(`/school/${school.id}/majors`, { params: { departmentId } });
     return r.data || [];
   }
 
+  // 负责读取当前页面所需的数据，并把结果同步到 state 中。
+  // 跟读这个函数时，建议同时留意它依赖了哪些 state/ref，以及执行后会触发哪些界面刷新。
   async function loadExams(nextFilters = filters) {
     setListLoading(true);
     try {
@@ -101,6 +110,8 @@ export default function SchoolExamsPages() {
     }
   }
 
+  // 负责把页面中的一段独立交互逻辑拆出来，避免主组件渲染区混入过多细节。
+  // 跟读这个函数时，建议同时留意它依赖了哪些 state/ref，以及执行后会触发哪些界面刷新。
   async function viewRooms(examId) {
     if (!examId) return;
     setListLoading(true);
@@ -115,6 +126,8 @@ export default function SchoolExamsPages() {
     }
   }
 
+  // 负责把页面中的一段独立交互逻辑拆出来，避免主组件渲染区混入过多细节。
+  // 跟读这个函数时，建议同时留意它依赖了哪些 state/ref，以及执行后会触发哪些界面刷新。
   async function onDepartmentChange(value) {
     const majorList = await fetchMajors(value);
     const nextFilters = {
@@ -127,12 +140,16 @@ export default function SchoolExamsPages() {
     await loadExams(nextFilters);
   }
 
+  // 负责把页面中的一段独立交互逻辑拆出来，避免主组件渲染区混入过多细节。
+  // 跟读这个函数时，建议同时留意它依赖了哪些 state/ref，以及执行后会触发哪些界面刷新。
   async function onMajorChange(value) {
     const nextFilters = { ...filters, majorId: value };
     setFilters(nextFilters);
     await loadExams(nextFilters);
   }
 
+  // 负责读取当前页面所需的数据，并把结果同步到 state 中。
+  // 跟读这个函数时，建议同时留意它依赖了哪些 state/ref，以及执行后会触发哪些界面刷新。
   function getStatusMeta(record) {
     const key = record?.status || "NOT_STARTED";
     return {
@@ -141,6 +158,8 @@ export default function SchoolExamsPages() {
     };
   }
 
+  // 负责处理当前页面的提交型交互，并在成功后刷新界面状态。
+  // 跟读这个函数时，建议同时留意它依赖了哪些 state/ref，以及执行后会触发哪些界面刷新。
   function openEdit(record) {
     if (record?.status !== "NOT_STARTED") {
       message.warning(tr("仅待开始状态的考试允许修改"));
@@ -155,6 +174,8 @@ export default function SchoolExamsPages() {
     setEditOpen(true);
   }
 
+  // 负责处理当前页面的提交型交互，并在成功后刷新界面状态。
+  // 跟读这个函数时，建议同时留意它依赖了哪些 state/ref，以及执行后会触发哪些界面刷新。
   async function submitEdit(values) {
     if (!editingExam?.id) return;
     setSaving(true);
@@ -175,6 +196,8 @@ export default function SchoolExamsPages() {
     }
   }
 
+  // 负责切换界面状态或执行带副作用的收尾动作。
+  // 跟读这个函数时，建议同时留意它依赖了哪些 state/ref，以及执行后会触发哪些界面刷新。
   async function removeExam(record) {
     try {
       await api.delete(`/school/${school.id}/exams/${record.id}`);
@@ -185,6 +208,8 @@ export default function SchoolExamsPages() {
     }
   }
 
+  // 负责把页面中的一段独立交互逻辑拆出来，避免主组件渲染区混入过多细节。
+  // 跟读这个函数时，建议同时留意它依赖了哪些 state/ref，以及执行后会触发哪些界面刷新。
   async function exportResults(record) {
     try {
       const res = await api.get(`/school/${school.id}/exams/${record.id}/results/export`, { responseType: "blob" });
@@ -199,6 +224,8 @@ export default function SchoolExamsPages() {
     }
   }
 
+  // 表格列配置集中描述了当前页面最核心的展示字段和每列的交互行为。
+  // 如果你想理解页面允许用户做什么，优先看这里的 render、按钮和状态标签。
   const columns = [
     { title: tr("考试名称"), dataIndex: "name", width: 180, ellipsis: true },
     { title: tr("学院"), dataIndex: "departmentName", width: 120, ellipsis: true, render: (text) => text || "-" },

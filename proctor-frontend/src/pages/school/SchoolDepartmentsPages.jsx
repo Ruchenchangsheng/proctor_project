@@ -1,3 +1,4 @@
+// SchoolDepartmentsPages 负责学校院系列表与新增流程，支撑教师和学生的组织归属。
 import React, { useEffect, useState } from "react";
 import { useOutletContext } from "react-router-dom";
 import { api } from "../../apiClient";
@@ -22,6 +23,8 @@ export default function SchoolDepartmentsPages({ mode = "list" }) {
   const showAdd = mode === "add";
   const showList = mode === "list";
 
+  // 负责读取当前页面所需的数据，并把结果同步到 state 中。
+  // 跟读这个函数时，建议同时留意它依赖了哪些 state/ref，以及执行后会触发哪些界面刷新。
   async function load(nextKeyword = keyword) {
     if (!school?.id) return;
     setLoading(true);
@@ -37,12 +40,16 @@ export default function SchoolDepartmentsPages({ mode = "list" }) {
     }
   }
 
+  // 这个 effect 负责在依赖变化时同步加载数据或建立/释放副作用。
+  // 阅读时可以重点看依赖数组、内部异步流程以及 return 清理逻辑三部分。
   useEffect(() => {
     if (showList) {
       load("");
     }
   }, [school?.id, showList]);
 
+  // 负责把页面中的一段独立交互逻辑拆出来，避免主组件渲染区混入过多细节。
+  // 跟读这个函数时，建议同时留意它依赖了哪些 state/ref，以及执行后会触发哪些界面刷新。
   async function addDept(values) {
     const name = values.dept?.trim();
     if (!name) return;
@@ -59,12 +66,16 @@ export default function SchoolDepartmentsPages({ mode = "list" }) {
     }
   }
 
+  // 负责处理当前页面的提交型交互，并在成功后刷新界面状态。
+  // 跟读这个函数时，建议同时留意它依赖了哪些 state/ref，以及执行后会触发哪些界面刷新。
   function openEdit(record) {
     setEditingDept(record);
     editForm.setFieldsValue({ name: record.name });
     setEditOpen(true);
   }
 
+  // 负责处理当前页面的提交型交互，并在成功后刷新界面状态。
+  // 跟读这个函数时，建议同时留意它依赖了哪些 state/ref，以及执行后会触发哪些界面刷新。
   async function submitEdit(values) {
     if (!editingDept?.id) return;
     setSaving(true);
@@ -81,6 +92,8 @@ export default function SchoolDepartmentsPages({ mode = "list" }) {
     }
   }
 
+  // 负责切换界面状态或执行带副作用的收尾动作。
+  // 跟读这个函数时，建议同时留意它依赖了哪些 state/ref，以及执行后会触发哪些界面刷新。
   async function removeDept(record) {
     try {
       await api.delete(`/school/${school.id}/departments/${record.id}`);
@@ -91,6 +104,8 @@ export default function SchoolDepartmentsPages({ mode = "list" }) {
     }
   }
 
+  // 表格列配置集中描述了当前页面最核心的展示字段和每列的交互行为。
+  // 如果你想理解页面允许用户做什么，优先看这里的 render、按钮和状态标签。
   const columns = [
     {
       title: tr("学院名称"),

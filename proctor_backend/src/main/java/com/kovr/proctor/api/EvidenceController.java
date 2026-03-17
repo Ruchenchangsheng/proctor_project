@@ -34,6 +34,9 @@ import java.util.Set;
 import java.util.TreeSet;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipOutputStream;
+/**
+ * EvidenceController 提供异常证据的查询、媒体下载、审核和导出能力。
+ */
 
 @RestController
 @RequestMapping("/api/evidence")
@@ -44,6 +47,10 @@ public class EvidenceController {
     private final SchoolAdminMapper schoolAdminMapper;
     private final AuditLogService auditLogService;
 
+    /**
+     * 读取或查询当前业务场景下需要的数据。
+     * 阅读这个方法时，可以重点关注它读取了哪些输入、修改了哪些状态，以及异常或边界条件如何处理。
+     */
     @GetMapping("/rooms/{examRoomId}")
     @PreAuthorize("hasRole('TEACHER')")
     public Map<String, Object> listByRoom(
@@ -56,6 +63,10 @@ public class EvidenceController {
         return Map.of("ok", true, "items", anomalyEvidenceService.listByRoom(examRoomId));
     }
 
+    /**
+     * 读取或查询当前业务场景下需要的数据。
+     * 阅读这个方法时，可以重点关注它读取了哪些输入、修改了哪些状态，以及异常或边界条件如何处理。
+     */
     @GetMapping("/school/{schoolId}")
     @PreAuthorize("hasRole('SCHOOL_ADMIN')")
     public Map<String, Object> listBySchool(
@@ -68,12 +79,20 @@ public class EvidenceController {
         return Map.of("ok", true, "items", anomalyEvidenceService.listBySchool(schoolId));
     }
 
+    /**
+     * 读取或查询当前业务场景下需要的数据。
+     * 阅读这个方法时，可以重点关注它读取了哪些输入、修改了哪些状态，以及异常或边界条件如何处理。
+     */
     @GetMapping("/all")
     @PreAuthorize("hasRole('ADMIN')")
     public Map<String, Object> listAll() {
         return Map.of("ok", true, "items", anomalyEvidenceService.listAll());
     }
 
+    /**
+     * 读取或查询当前业务场景下需要的数据。
+     * 阅读这个方法时，可以重点关注它读取了哪些输入、修改了哪些状态，以及异常或边界条件如何处理。
+     */
     @GetMapping("/{evidenceId}")
     @PreAuthorize("hasAnyRole('TEACHER','SCHOOL_ADMIN','ADMIN')")
     public Map<String, Object> getEvidence(
@@ -91,6 +110,10 @@ public class EvidenceController {
         return Map.of("ok", true, "item", evidence);
     }
 
+    /**
+     * 封装当前类中的一段独立业务步骤，减少调用方直接处理过多细节。
+     * 阅读这个方法时，可以重点关注它读取了哪些输入、修改了哪些状态，以及异常或边界条件如何处理。
+     */
     @GetMapping("/{evidenceId}/media")
     @PreAuthorize("hasAnyRole('TEACHER','SCHOOL_ADMIN','ADMIN')")
     public ResponseEntity<Resource> media(
@@ -122,6 +145,10 @@ public class EvidenceController {
                 .body(media);
     }
 
+    /**
+     * 封装当前类中的一段独立业务步骤，减少调用方直接处理过多细节。
+     * 阅读这个方法时，可以重点关注它读取了哪些输入、修改了哪些状态，以及异常或边界条件如何处理。
+     */
     @PostMapping("/{evidenceId}/review")
     @PreAuthorize("hasAnyRole('TEACHER','SCHOOL_ADMIN','ADMIN')")
     public Map<String, Object> reviewEvidence(
@@ -141,6 +168,10 @@ public class EvidenceController {
         return Map.of("ok", true, "item", item);
     }
 
+    /**
+     * 封装当前类中的一段独立业务步骤，减少调用方直接处理过多细节。
+     * 阅读这个方法时，可以重点关注它读取了哪些输入、修改了哪些状态，以及异常或边界条件如何处理。
+     */
     @GetMapping("/{evidenceId}/report")
     @PreAuthorize("hasAnyRole('TEACHER','SCHOOL_ADMIN','ADMIN')")
     public ResponseEntity<String> report(
@@ -158,6 +189,10 @@ public class EvidenceController {
                 .body(buildEvidenceReport(evidence));
     }
 
+    /**
+     * 封装当前类中的一段独立业务步骤，减少调用方直接处理过多细节。
+     * 阅读这个方法时，可以重点关注它读取了哪些输入、修改了哪些状态，以及异常或边界条件如何处理。
+     */
     @PostMapping(value = "/export-list", produces = "text/csv")
     @PreAuthorize("hasAnyRole('TEACHER','SCHOOL_ADMIN','ADMIN')")
     public ResponseEntity<String> exportList(
@@ -185,6 +220,10 @@ public class EvidenceController {
                 .body(csv.toString());
     }
 
+    /**
+     * 封装当前类中的一段独立业务步骤，减少调用方直接处理过多细节。
+     * 阅读这个方法时，可以重点关注它读取了哪些输入、修改了哪些状态，以及异常或边界条件如何处理。
+     */
     @PostMapping(value = "/export-zip", produces = "application/zip")
     @PreAuthorize("hasAnyRole('TEACHER','SCHOOL_ADMIN','ADMIN')")
     public ResponseEntity<StreamingResponseBody> exportZip(
@@ -224,6 +263,10 @@ public class EvidenceController {
                 .body(body);
     }
 
+    /**
+     * 封装当前类中的一段独立业务步骤，减少调用方直接处理过多细节。
+     * 阅读这个方法时，可以重点关注它读取了哪些输入、修改了哪些状态，以及异常或边界条件如何处理。
+     */
     private boolean canView(UserDetailsImpl user, Map<String, Object> evidence) {
         if (user == null || evidence == null) {
             return false;
@@ -253,6 +296,10 @@ public class EvidenceController {
         return false;
     }
 
+    /**
+     * 封装当前类中的一段独立业务步骤，减少调用方直接处理过多细节。
+     * 阅读这个方法时，可以重点关注它读取了哪些输入、修改了哪些状态，以及异常或边界条件如何处理。
+     */
     private List<Map<String, Object>> resolveAccessibleEvidences(UserDetailsImpl user, EvidenceExportReq req) {
         Set<String> ids = new TreeSet<>();
         if (req != null && req.evidenceIds() != null) {
@@ -264,6 +311,10 @@ public class EvidenceController {
                 .toList();
     }
 
+    /**
+     * 把输入值转换成当前模块更容易继续处理的标准格式。
+     * 阅读这个方法时，可以重点关注它读取了哪些输入、修改了哪些状态，以及异常或边界条件如何处理。
+     */
     private String normalizeReviewStatus(String reviewStatus) {
         String normalized = normalizeText(reviewStatus);
         if (normalized == null) {
@@ -275,6 +326,10 @@ public class EvidenceController {
         };
     }
 
+    /**
+     * 把输入值转换成当前模块更容易继续处理的标准格式。
+     * 阅读这个方法时，可以重点关注它读取了哪些输入、修改了哪些状态，以及异常或边界条件如何处理。
+     */
     private String normalizeText(String value) {
         if (value == null) {
             return null;
@@ -283,6 +338,10 @@ public class EvidenceController {
         return text.isEmpty() ? null : text;
     }
 
+    /**
+     * 创建并组装当前业务对象或执行一段创建型流程。
+     * 阅读这个方法时，可以重点关注它读取了哪些输入、修改了哪些状态，以及异常或边界条件如何处理。
+     */
     private String buildEvidenceSummary(Map<String, Object> evidence) {
         return String.format("考试：%s ｜ 学生：%s ｜ 异常：%s",
                 evidence.getOrDefault("examName", "-"),

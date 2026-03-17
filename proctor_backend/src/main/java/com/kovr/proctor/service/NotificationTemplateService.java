@@ -13,6 +13,9 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+/**
+ * NotificationTemplateService 负责通知模板的读取、更新和默认值管理。
+ */
 
 @Service
 @DependsOn("databaseSchemaInitializer")

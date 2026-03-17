@@ -1,3 +1,4 @@
+// SchoolLayout 负责学校管理员端的导航与路由出口，把组织、考试和证据管理放在统一壳层中。
 import { Outlet, useLocation, useNavigate } from "react-router-dom";
 import { Button, Card, Space, Typography } from "antd";
 import { useEffect, useState } from "react";
@@ -79,6 +80,8 @@ export default function SchoolLayout() {
   const [school, setSchool] = useState(null);
   const { tr } = useCatalogTranslation();
 
+  // 这个 effect 负责在依赖变化时同步加载数据或建立/释放副作用。
+  // 阅读时可以重点看依赖数组、内部异步流程以及 return 清理逻辑三部分。
   useEffect(() => {
     (async () => {
       try {
@@ -90,6 +93,8 @@ export default function SchoolLayout() {
     })();
   }, []);
 
+  // 负责把页面中的一段独立交互逻辑拆出来，避免主组件渲染区混入过多细节。
+  // 跟读这个函数时，建议同时留意它依赖了哪些 state/ref，以及执行后会触发哪些界面刷新。
   function onLogout() {
     logout();
     navigate("/login", { replace: true });

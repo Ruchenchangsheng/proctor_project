@@ -1,3 +1,4 @@
+// TeacherEvidenceStudentsPage 展示某场考试下有异常证据的学生列表，方便按学生继续追查。
 import { useEffect, useMemo, useState } from "react";
 import { useLocation, useNavigate, useParams } from "react-router-dom";
 import { api } from "../../apiClient";
@@ -15,6 +16,8 @@ export default function TeacherEvidenceStudentsPage() {
     const [students, setStudents] = useState([]);
     const [msg, setMsg] = useState("");
 
+    // 这个 effect 负责在依赖变化时同步加载数据或建立/释放副作用。
+    // 阅读时可以重点看依赖数组、内部异步流程以及 return 清理逻辑三部分。
     useEffect(() => {
         Promise.all([
             api.get(`/evidence/rooms/${examRoomId}`),
@@ -43,7 +46,7 @@ export default function TeacherEvidenceStudentsPage() {
     }, [items, students]);
 
     return (
-        <Card className="glass-effect" variant="borderless" style={{ borderRadius: 16, height: "100%", overflowY: "auto" }}>
+        <Card className="glass-effect" variant="borderless" style={{ borderRadius: 16 }}>
             <Space direction="vertical" size={8} style={{ width: "100%" }}>
                 <Button onClick={() => navigate(-1)} style={{ width: "fit-content" }}>{tr("← 返回考试列表")}</Button>
                 <Title level={5} style={{ margin: 0 }}>{tr("考试")}: {location.state?.examName || "-"} ({tr("考场")} {location.state?.roomId || examRoomId})</Title>

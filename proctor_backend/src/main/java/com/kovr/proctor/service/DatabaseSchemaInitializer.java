@@ -5,6 +5,9 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Component;
+/**
+ * DatabaseSchemaInitializer 负责在系统启动时补齐数据库表结构或种子数据。
+ */
 
 @Component
 @RequiredArgsConstructor
@@ -12,6 +15,10 @@ import org.springframework.stereotype.Component;
 public class DatabaseSchemaInitializer {
     private final JdbcTemplate jdbcTemplate;
 
+    /**
+     * 封装当前类中的一段独立业务步骤，减少调用方直接处理过多细节。
+     * 阅读这个方法时，可以重点关注它读取了哪些输入、修改了哪些状态，以及异常或边界条件如何处理。
+     */
     @PostConstruct
     public void initialize() {
         createAuditLogsTable();
@@ -21,6 +28,10 @@ public class DatabaseSchemaInitializer {
         ensureEvidenceReviewColumns();
     }
 
+    /**
+     * 创建并组装当前业务对象或执行一段创建型流程。
+     * 阅读这个方法时，可以重点关注它读取了哪些输入、修改了哪些状态，以及异常或边界条件如何处理。
+     */
     private void createAuditLogsTable() {
         jdbcTemplate.execute("""
                 create table if not exists audit_logs (
@@ -38,6 +49,10 @@ public class DatabaseSchemaInitializer {
                 """);
     }
 
+    /**
+     * 创建并组装当前业务对象或执行一段创建型流程。
+     * 阅读这个方法时，可以重点关注它读取了哪些输入、修改了哪些状态，以及异常或边界条件如何处理。
+     */
     private void createPlatformSettingsTable() {
         jdbcTemplate.execute("""
                 create table if not exists platform_settings (
@@ -53,6 +68,10 @@ public class DatabaseSchemaInitializer {
                 """);
     }
 
+    /**
+     * 创建并组装当前业务对象或执行一段创建型流程。
+     * 阅读这个方法时，可以重点关注它读取了哪些输入、修改了哪些状态，以及异常或边界条件如何处理。
+     */
     private void createNotificationTemplatesTable() {
         jdbcTemplate.execute("""
                 create table if not exists notification_templates (
@@ -69,12 +88,20 @@ public class DatabaseSchemaInitializer {
                 """);
     }
 
+    /**
+     * 执行前置校验或条件判断，为后续主流程提供可靠分支依据。
+     * 阅读这个方法时，可以重点关注它读取了哪些输入、修改了哪些状态，以及异常或边界条件如何处理。
+     */
     private void ensureUserSecurityColumns() {
         addColumnIfMissing("users", "must_change_password", "alter table users add column must_change_password tinyint not null default 0 after enabled");
         addColumnIfMissing("users", "failed_login_attempts", "alter table users add column failed_login_attempts int not null default 0 after must_change_password");
         addColumnIfMissing("users", "locked_until", "alter table users add column locked_until datetime null after failed_login_attempts");
     }
 
+    /**
+     * 执行前置校验或条件判断，为后续主流程提供可靠分支依据。
+     * 阅读这个方法时，可以重点关注它读取了哪些输入、修改了哪些状态，以及异常或边界条件如何处理。
+     */
     private void ensureEvidenceReviewColumns() {
         addColumnIfMissing("anomaly_evidences", "review_status", "alter table anomaly_evidences add column review_status varchar(32) not null default 'PENDING' after frame_count");
         addColumnIfMissing("anomaly_evidences", "review_note", "alter table anomaly_evidences add column review_note text null after review_status");
@@ -84,6 +111,10 @@ public class DatabaseSchemaInitializer {
         addColumnIfMissing("anomaly_evidences", "last_viewed_at", "alter table anomaly_evidences add column last_viewed_at datetime null after reviewed_at");
     }
 
+    /**
+     * 创建并组装当前业务对象或执行一段创建型流程。
+     * 阅读这个方法时，可以重点关注它读取了哪些输入、修改了哪些状态，以及异常或边界条件如何处理。
+     */
     private void addColumnIfMissing(String tableName, String columnName, String ddl) {
         Integer count = jdbcTemplate.queryForObject(
                 """

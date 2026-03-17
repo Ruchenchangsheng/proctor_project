@@ -8,9 +8,16 @@ import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
+/**
+ * ApiErrorController 统一输出接口错误响应，避免默认错误页泄漏实现细节。
+ */
 
 @RestController
 public class ApiErrorController implements ErrorController {
+    /**
+     * 封装当前类中的一段独立业务步骤，减少调用方直接处理过多细节。
+     * 阅读这个方法时，可以重点关注它读取了哪些输入、修改了哪些状态，以及异常或边界条件如何处理。
+     */
     @RequestMapping("/error")
     public ResponseEntity<String> error(HttpServletRequest request) {
         HttpStatus status = resolveStatus(request);
@@ -26,6 +33,10 @@ public class ApiErrorController implements ErrorController {
         return ResponseEntity.status(status).contentType(MediaType.APPLICATION_JSON).body(body);
     }
 
+    /**
+     * 封装当前类中的一段独立业务步骤，减少调用方直接处理过多细节。
+     * 阅读这个方法时，可以重点关注它读取了哪些输入、修改了哪些状态，以及异常或边界条件如何处理。
+     */
     private HttpStatus resolveStatus(HttpServletRequest request) {
         Object value = request.getAttribute(RequestDispatcher.ERROR_STATUS_CODE);
         if (value instanceof Integer code) {

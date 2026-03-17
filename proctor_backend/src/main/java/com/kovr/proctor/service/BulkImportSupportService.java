@@ -13,6 +13,9 @@ import java.util.List;
 import java.util.Map;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipInputStream;
+/**
+ * BulkImportSupportService 封装批量导入教师、学生等基础数据时的辅助逻辑。
+ */
 
 @Service
 public class BulkImportSupportService {

@@ -1,3 +1,4 @@
+// catalog 定义系统内置文案目录和语言工具函数，供翻译查找与语言映射使用。
 export const LANGUAGE_STORAGE_KEY = "proctor-ui-language";
 export const SUPPORTED_LANGUAGES = ["zh-CN", "en-US", "ru-RU"];
 export const DEFAULT_LANGUAGE = "zh-CN";
@@ -126,6 +127,8 @@ const exactEntries = [
   ["等待异常检测通知...", "Waiting for anomaly alerts...", "Ожидание уведомлений об аномалиях..."],
   ["暂无学生进入考试实时视频", "No students are currently streaming live exam video", "Сейчас ни один студент не транслирует видео экзамена"],
   ["当前播放音频：未选择", "Current audio: none selected", "Текущее аудио: ничего не выбрано"],
+  ["已开启音频", "Audio On", "Аудио включено"],
+  ["已关闭", "Muted", "Выключено"],
   ["关闭声音", "Mute", "Выключить звук"],
   ["播放声音", "Play Audio", "Включить звук"],
   ["无音频", "No Audio", "Без звука"],
@@ -712,6 +715,8 @@ const exactMap = buildEntryMap(exactEntries);
 const labelMap = buildEntryMap(labelEntries);
 const interfaceMap = Object.fromEntries(interfaceEntries.map(([key, zh, en, ru]) => [key, { "zh-CN": zh, "en-US": en, "ru-RU": ru }]));
 
+// 负责把页面中的一段独立交互逻辑拆出来，避免主组件渲染区混入过多细节。
+// 跟读这个函数时，建议同时留意它依赖了哪些 state/ref，以及执行后会触发哪些界面刷新。
 const localize = (language, zhValue, enValue, ruValue) => {
   if (language === "en-US") return enValue;
   if (language === "ru-RU") return ruValue;
@@ -720,6 +725,8 @@ const localize = (language, zhValue, enValue, ruValue) => {
 
 const translateLabelText = (label, language) => labelMap[label]?.[language] || exactMap[label]?.[language] || null;
 
+// 负责把页面中的一段独立交互逻辑拆出来，避免主组件渲染区混入过多细节。
+// 跟读这个函数时，建议同时留意它依赖了哪些 state/ref，以及执行后会触发哪些界面刷新。
 const translateByLabel = (text, language) => {
   const match = text.match(/^(.+?)[：:]\s*(.+)$/);
   if (!match) return null;
@@ -729,11 +736,15 @@ const translateByLabel = (text, language) => {
   return `${translatedLabel}: ${translateSourceText(value, language)}`;
 };
 
+// 负责把页面中的一段独立交互逻辑拆出来，避免主组件渲染区混入过多细节。
+// 跟读这个函数时，建议同时留意它依赖了哪些 state/ref，以及执行后会触发哪些界面刷新。
 const translateStandaloneLabel = (text, language) => {
   const translated = translateLabelText(text, language);
   return translated || null;
 };
 
+// 负责把页面中的一段独立交互逻辑拆出来，避免主组件渲染区混入过多细节。
+// 跟读这个函数时，建议同时留意它依赖了哪些 state/ref，以及执行后会触发哪些界面刷新。
 const translateLabelPrefix = (text, language) => {
   const match = text.match(/^(.+?)[：:]$/);
   if (!match) return null;

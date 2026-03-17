@@ -1,3 +1,4 @@
+// TeacherMonitor 是教师实时监考页，负责接收学生音视频、展示异常告警并查看证据。
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Link, useLocation, useParams } from "react-router-dom";
 import { api } from "../../apiClient";
@@ -19,7 +20,9 @@ export default function TeacherMonitor() {
   const [allStudents, setAllStudents] = useState([]);
   const [liveStudents, setLiveStudents] = useState([]);
   const [msg, setMsg] = useState("");
-  const [activeAudioStudentId, setActiveAudioStudentId] = useState(null);
+  const [mutedStudentIds, setMutedStudentIds] = useState([]);
+  const [viewportWidth, setViewportWidth] = useState(() => (typeof window !== "undefined" ? window.innerWidth : 1440));
+  const [viewportHeight, setViewportHeight] = useState(() => (typeof window !== "undefined" ? window.innerHeight : 900));
 
   const [liveNotices, setLiveNotices] = useState([]);
   const [evidences, setEvidences] = useState([]);
@@ -31,16 +34,22 @@ export default function TeacherMonitor() {
   const allStudentsRef = useRef([]);
   const lastOfferAttemptRef = useRef(new Map());
 
+  // 负责把输入数据整理成当前页面更容易消费的格式。
+  // 跟读这个函数时，建议同时留意它依赖了哪些 state/ref，以及执行后会触发哪些界面刷新。
   function normalizeId(value) {
     if (value === null || value === undefined || value === "") return "";
     return String(value);
   }
 
+  // 负责把页面中的一段独立交互逻辑拆出来，避免主组件渲染区混入过多细节。
+  // 跟读这个函数时，建议同时留意它依赖了哪些 state/ref，以及执行后会触发哪些界面刷新。
   function studentNameById(studentId) {
     const hit = allStudentsRef.current.find((s) => Number(s.studentId) === Number(studentId));
     return hit?.studentName || `学生#${studentId}`;
   }
 
+  // 负责把输入数据整理成当前页面更容易消费的格式。
+  // 跟读这个函数时，建议同时留意它依赖了哪些 state/ref，以及执行后会触发哪些界面刷新。
   function formatTs(ts) {
     let d;
     if (typeof ts === "number") d = new Date(ts);
@@ -50,12 +59,16 @@ export default function TeacherMonitor() {
     return d.toLocaleTimeString(toIntlLocale(i18n.language), { hour12: false });
   }
 
+  // 负责把输入数据整理成当前页面更容易消费的格式。
+  // 跟读这个函数时，建议同时留意它依赖了哪些 state/ref，以及执行后会触发哪些界面刷新。
   function formatProbability(value) {
     const n = Number(value);
     if (!Number.isFinite(n)) return "-";
     return n.toFixed(6);
   }
 
+  // 负责把输入数据整理成当前页面更容易消费的格式。
+  // 跟读这个函数时，建议同时留意它依赖了哪些 state/ref，以及执行后会触发哪些界面刷新。
   function mapCodeByLabel(label) {
     const m = {
       identity_face_missing: 1001,
@@ -81,6 +94,8 @@ export default function TeacherMonitor() {
     return m[label] ?? 9000;
   }
 
+  // 负责把页面中的一段独立交互逻辑拆出来，避免主组件渲染区混入过多细节。
+  // 跟读这个函数时，建议同时留意它依赖了哪些 state/ref，以及执行后会触发哪些界面刷新。
   function violationTextByCode(code) {
     const c = Number(code);
     const m = {
@@ -100,6 +115,7 @@ export default function TeacherMonitor() {
     return m[c] || "异常行为";
   }
 
+  // 教师端通过同一 STOMP 主题和学生协商 WebRTC，房间号就是双方的会合点。
   function publishSignal(payload) {
     const client = stompRef.current;
     if (!client?.connected) {
@@ -113,7 +129,10 @@ export default function TeacherMonitor() {
     });
   }
 
+  // 负责把页面中的一段独立交互逻辑拆出来，避免主组件渲染区混入过多细节。
+  // 跟读这个函数时，建议同时留意它依赖了哪些 state/ref，以及执行后会触发哪些界面刷新。
   function combineStreamTracks(existingStream, incomingStream) {
+    // 同一学生可能先到视频后到音频，这里把已到达的轨道合并成一条完整流。
     const tracks = new Map();
     existingStream?.getTracks().forEach((track) => {
       if (track.readyState === "live") {
@@ -128,6 +147,8 @@ export default function TeacherMonitor() {
     return new MediaStream(Array.from(tracks.values()));
   }
 
+  // 负责把某个对象加载到当前页面上下文中，并更新相关显示状态。
+  // 跟读这个函数时，建议同时留意它依赖了哪些 state/ref，以及执行后会触发哪些界面刷新。
   function updateLiveStream(studentId, stream) {
     setLiveStudents((prev) => {
       const student = allStudentsRef.current.find((s) => Number(s.studentId) === Number(studentId));
@@ -142,10 +163,19 @@ export default function TeacherMonitor() {
     });
   }
 
+  // 负责切换界面状态或执行带副作用的收尾动作。
+  // 跟读这个函数时，建议同时留意它依赖了哪些 state/ref，以及执行后会触发哪些界面刷新。
   function toggleStudentAudio(studentId) {
-    setActiveAudioStudentId((current) => (Number(current) === Number(studentId) ? null : Number(studentId)));
+    const normalizedStudentId = Number(studentId);
+    setMutedStudentIds((current) => (
+      current.some((id) => Number(id) === normalizedStudentId)
+        ? current.filter((id) => Number(id) !== normalizedStudentId)
+        : [...current, normalizedStudentId]
+    ));
   }
 
+  // 负责把某个对象加载到当前页面上下文中，并更新相关显示状态。
+  // 跟读这个函数时，建议同时留意它依赖了哪些 state/ref，以及执行后会触发哪些界面刷新。
   function upsertNotices(events = [], fallbackStudentId = null) {
     const notices = (events || [])
       .filter((evt) => evt && typeof evt === "object")
@@ -178,6 +208,8 @@ export default function TeacherMonitor() {
     });
   }
 
+  // 负责把某个对象加载到当前页面上下文中，并更新相关显示状态。
+  // 跟读这个函数时，建议同时留意它依赖了哪些 state/ref，以及执行后会触发哪些界面刷新。
   function upsertEvidences(items = []) {
     if (!Array.isArray(items) || items.length === 0) return;
     setEvidences((prev) => {
@@ -194,6 +226,8 @@ export default function TeacherMonitor() {
     });
   }
 
+  // 负责把某个对象加载到当前页面上下文中，并更新相关显示状态。
+  // 跟读这个函数时，建议同时留意它依赖了哪些 state/ref，以及执行后会触发哪些界面刷新。
   async function openEvidence(item, mode = "preview") {
     const evidenceId = item?.evidenceId;
     if (!evidenceId) return;
@@ -223,8 +257,11 @@ export default function TeacherMonitor() {
     }
   }
 
+  // 负责读取当前页面所需的数据，并把结果同步到 state 中。
+  // 跟读这个函数时，建议同时留意它依赖了哪些 state/ref，以及执行后会触发哪些界面刷新。
   async function loadAlertsSnapshot() {
     try {
+      // 告警快照作为实时订阅的兜底，避免教师刷新页面后丢失已经发生的异常。
       const r = await api.get(`/teacher/rooms/${examRoomId}/alerts`);
       if (!r.data?.ok) return;
       const events = Array.isArray(r.data.events) ? r.data.events : [];
@@ -239,15 +276,21 @@ export default function TeacherMonitor() {
     }
   }
 
+  // 负责切换界面状态或执行带副作用的收尾动作。
+  // 跟读这个函数时，建议同时留意它依赖了哪些 state/ref，以及执行后会触发哪些界面刷新。
   function removeLiveStream(studentId) {
     setLiveStudents((prev) => prev.filter((x) => Number(x.studentId) !== Number(studentId)));
   }
 
+  // 负责把页面中的一段独立交互逻辑拆出来，避免主组件渲染区混入过多细节。
+  // 跟读这个函数时，建议同时留意它依赖了哪些 state/ref，以及执行后会触发哪些界面刷新。
   function hasActiveRemoteVideo(peer) {
     if (!peer) return false;
     return peer.getReceivers().some((receiver) => receiver.track?.kind === "video" && receiver.track.readyState === "live");
   }
 
+  // 负责切换界面状态或执行带副作用的收尾动作。
+  // 跟读这个函数时，建议同时留意它依赖了哪些 state/ref，以及执行后会触发哪些界面刷新。
   function closePeer(studentId) {
     const pc = peersRef.current.get(studentId);
     if (pc) {
@@ -255,9 +298,25 @@ export default function TeacherMonitor() {
       peersRef.current.delete(studentId);
     }
     removeLiveStream(studentId);
-    setActiveAudioStudentId((current) => (Number(current) === Number(studentId) ? null : current));
+    setMutedStudentIds((current) => current.filter((id) => Number(id) !== Number(studentId)));
   }
 
+  useEffect(() => {
+    const syncViewportSize = () => {
+      setViewportWidth(window.innerWidth || 1440);
+      setViewportHeight(window.innerHeight || 900);
+    };
+    syncViewportSize();
+    window.addEventListener("resize", syncViewportSize);
+    return () => window.removeEventListener("resize", syncViewportSize);
+  }, []);
+
+  useEffect(() => {
+    setMutedStudentIds((current) => current.filter((id) => liveStudents.some((student) => Number(student.studentId) === Number(id))));
+  }, [liveStudents]);
+
+  // 负责处理当前页面的提交型交互，并在成功后刷新界面状态。
+  // 跟读这个函数时，建议同时留意它依赖了哪些 state/ref，以及执行后会触发哪些界面刷新。
   async function createOfferForStudent(studentId) {
     if (!allStudentsRef.current.some((s) => Number(s.studentId) === Number(studentId))) return;
 
@@ -316,16 +375,21 @@ export default function TeacherMonitor() {
     });
   }
 
+  // 负责把页面中的一段独立交互逻辑拆出来，避免主组件渲染区混入过多细节。
+  // 跟读这个函数时，建议同时留意它依赖了哪些 state/ref，以及执行后会触发哪些界面刷新。
   async function offerForAllStudents() {
     const tasks = allStudentsRef.current.map((s) => createOfferForStudent(Number(s.studentId)));
     await Promise.allSettled(tasks);
   }
 
+  // 这个 effect 负责在依赖变化时同步加载数据或建立/释放副作用。
+  // 阅读时可以重点看依赖数组、内部异步流程以及 return 清理逻辑三部分。
   useEffect(() => {
     let reconnectTimer = null;
     let alertsTimer = null;
     (async () => {
       try {
+        // 监考页的初始化顺序是：拉学生名单 -> 拉告警快照 -> 建立 STOMP -> 再发起 WebRTC。
         if (!teacherSenderId) {
           setMsg("无法识别当前监考老师身份，请重新登录");
           return;
@@ -365,6 +429,7 @@ export default function TeacherMonitor() {
         client.onConnect = () => {
           console.info("[teacher-monitor] stomp connected", { examRoomId, teacherSenderId });
           client.subscribe(`/topic/exam-room.${examRoomId}`, async (frame) => {
+            // 教师既接收学生加入/离开通知，也接收 answer/candidate 来完成 WebRTC 建链。
             let signal = {};
             try {
               signal = JSON.parse(frame.body || "{}");
@@ -460,33 +525,148 @@ export default function TeacherMonitor() {
       peersRef.current.forEach((pc) => pc.close());
       peersRef.current.clear();
       lastOfferAttemptRef.current.clear();
-      setActiveAudioStudentId(null);
+      setMutedStudentIds([]);
       setLiveStudents([]);
       allStudentsRef.current = [];
     };
   }, [examRoomId, teacherSenderId]);
 
-  const monitorGridTemplate = useMemo(() => {
-    if (liveStudents.length <= 1) return "1fr";
-    if (liveStudents.length <= 4) return "repeat(2, minmax(0, 1fr))";
-    return "repeat(3, minmax(0, 1fr))";
-  }, [liveStudents.length]);
+  const isStackedLayout = viewportWidth < 1200;
+  const sidePanelWidth = isStackedLayout ? Math.max(viewportWidth - 32, 320) : Math.min(Math.max(viewportWidth * 0.22, 300), 360);
+  const mainPanelWidth = isStackedLayout
+    ? Math.max(viewportWidth - 32, 320)
+    : Math.max(viewportWidth - sidePanelWidth - 76, 360);
+  const mainPanelHeight = isStackedLayout
+    ? Math.max(Math.floor(viewportHeight * 0.5), 280)
+    : Math.max(Math.floor(viewportHeight * 0.94) - 196, 280);
+  const sidePanelHeight = isStackedLayout
+    ? Math.max(Math.floor(viewportHeight * 0.34), 220)
+    : Math.max(Math.floor(viewportHeight * 0.94) - 196, 220);
 
+  const monitorGridConfig = useMemo(() => {
+    const count = liveStudents.length;
+    if (count <= 1) {
+      return {
+        columns: "minmax(0, 980px)",
+        justifyContent: "center",
+        density: "regular",
+        gap: 10,
+        singleView: true,
+      };
+    }
+
+    const densityOrder = ["regular", "compact", "dense"];
+    const densityGapMap = { regular: 10, compact: 8, dense: 6 };
+    const densityChromeHeightMap = { regular: 88, compact: 74, dense: 64 };
+    const maxColumns = Math.min(
+      count,
+      isStackedLayout
+        ? 3
+        : viewportWidth >= 2300
+          ? 7
+          : viewportWidth >= 1900
+            ? 6
+            : viewportWidth >= 1500
+              ? 5
+              : 4
+    );
+
+    for (const density of densityOrder) {
+      const gap = densityGapMap[density];
+      const chromeHeight = densityChromeHeightMap[density];
+      for (let columns = 2; columns <= maxColumns; columns += 1) {
+        const rows = Math.ceil(count / columns);
+        const cellWidth = (mainPanelWidth - gap * (columns - 1)) / columns;
+        const cardHeight = cellWidth * 0.75 + chromeHeight;
+        const totalHeight = rows * cardHeight + gap * (rows - 1);
+        if (totalHeight <= mainPanelHeight) {
+          return {
+            columns: `repeat(${columns}, minmax(0, 1fr))`,
+            justifyContent: "stretch",
+            density,
+            gap,
+            singleView: false,
+          };
+        }
+      }
+    }
+
+    return {
+      columns: `repeat(${maxColumns}, minmax(0, 1fr))`,
+      justifyContent: "stretch",
+      density: "dense",
+      gap: 6,
+      singleView: false,
+    };
+  }, [isStackedLayout, liveStudents.length, mainPanelHeight, mainPanelWidth, viewportWidth]);
+
+  // 负责把页面中的一段独立交互逻辑拆出来，避免主组件渲染区混入过多细节。
+  // 跟读这个函数时，建议同时留意它依赖了哪些 state/ref，以及执行后会触发哪些界面刷新。
   function isSevere(severity) {
     return String(severity || "WARNING").toUpperCase() === "SEVERE";
   }
 
+  // 负责把页面中的一段独立交互逻辑拆出来，避免主组件渲染区混入过多细节。
+  // 跟读这个函数时，建议同时留意它依赖了哪些 state/ref，以及执行后会触发哪些界面刷新。
   function severityText(severity) {
     return isSevere(severity) ? "严重" : "警告";
   }
 
-  const activeAudioStudentName = useMemo(() => {
-    const activeStudent = liveStudents.find((student) => Number(student.studentId) === Number(activeAudioStudentId));
-    return activeStudent?.studentName || "";
-  }, [activeAudioStudentId, liveStudents]);
+  const enabledAudioCount = useMemo(() => (
+    liveStudents.filter((student) => !mutedStudentIds.some((id) => Number(id) === Number(student.studentId))).length
+  ), [liveStudents, mutedStudentIds]);
+  const visibleNotices = useMemo(() => {
+    const reservedHeight = 108;
+    const itemHeight = isStackedLayout ? 74 : 88;
+    const maxVisibleCount = Math.max(2, Math.floor((sidePanelHeight - reservedHeight) / itemHeight));
+    return liveNotices.slice(0, maxVisibleCount);
+  }, [isStackedLayout, liveNotices, sidePanelHeight]);
+  const monitorBodyStyle = {
+    display: "flex",
+    flexDirection: isStackedLayout ? "column" : "row",
+    gap: 12,
+    minHeight: 0,
+    flex: 1,
+    minWidth: 0,
+    overflow: isStackedLayout ? "visible" : "hidden",
+    width: "100%",
+  };
+  const monitorMainStyle = {
+    borderRadius: 16,
+    minHeight: 0,
+    minWidth: 0,
+    maxWidth: "100%",
+    overflow: "hidden",
+    display: "flex",
+    flexDirection: "column",
+    flex: isStackedLayout ? "none" : "1 1 0",
+    width: isStackedLayout ? "100%" : "auto",
+  };
+  const monitorGridStyle = {
+    gridTemplateColumns: monitorGridConfig.columns,
+    justifyContent: monitorGridConfig.justifyContent,
+    gap: monitorGridConfig.gap,
+    minWidth: 0,
+    width: "100%",
+    height: "100%",
+    alignContent: "start",
+    gridAutoRows: monitorGridConfig.singleView ? "minmax(0, 1fr)" : "max-content",
+    alignItems: monitorGridConfig.singleView ? "stretch" : "start",
+    overflow: "hidden",
+  };
+  const monitorSideStyle = {
+    borderRadius: 16,
+    minHeight: 0,
+    minWidth: 0,
+    maxWidth: "100%",
+    overflow: "hidden",
+    flex: isStackedLayout ? "none" : "0 0 clamp(300px, 22vw, 360px)",
+    width: isStackedLayout ? "100%" : "auto",
+    height: isStackedLayout ? "auto" : "100%",
+  };
 
   return (
-    <div style={{ width: "100%", height: "calc(94vh - 8px)", margin: "0 auto", display: "flex", flexDirection: "column", gap: 12, overflow: "hidden" }}>
+    <div className="app-monitor-page">
       <Card className="glass-effect" variant="borderless" style={{ borderRadius: 16, flex: "0 0 auto" }}>
         <Space orientation="vertical" size={8} style={{ width: "100%" }}>
           <Link to="/teacher/tasks/running">{tr("← 返回监考主页")}</Link>
@@ -496,14 +676,21 @@ export default function TeacherMonitor() {
         </Space>
       </Card>
 
-      <div style={{ display: "flex", gap: 12, minHeight: 0, flex: 1, overflow: "hidden" }}>
-        <Card className="glass-effect" variant="borderless" style={{ borderRadius: 16, width: "78%", minWidth: 0, minHeight: 0, overflow: "hidden", display: "flex", flexDirection: "column" }}>
-          <div style={{ display: "grid", gridTemplateColumns: monitorGridTemplate, gap: 10, overflowY: "auto", minHeight: 0, flex: 1, paddingRight: 4 }}>
+      <div className="app-monitor-body" style={monitorBodyStyle}>
+        <Card
+          className="glass-effect app-monitor-main"
+          variant="borderless"
+          style={monitorMainStyle}
+          styles={{ body: { display: "flex", flexDirection: "column", minHeight: 0, height: "100%", overflow: "hidden" } }}
+        >
+          <div className={`app-monitor-grid is-${monitorGridConfig.density}`} style={monitorGridStyle}>
             {liveStudents.map((s) => (
               <VideoCard
                 key={s.studentId}
                 student={s}
-                isAudioActive={Number(activeAudioStudentId) === Number(s.studentId)}
+                density={monitorGridConfig.density}
+                isSingleView={monitorGridConfig.singleView}
+                isAudioActive={!mutedStudentIds.some((id) => Number(id) === Number(s.studentId))}
                 onToggleAudio={toggleStudentAudio}
               />
             ))}
@@ -513,29 +700,29 @@ export default function TeacherMonitor() {
         </Card>
 
         <Card
-          className="glass-effect"
+          className="glass-effect app-monitor-side"
           variant="borderless"
-          style={{ borderRadius: 16, width: "22%", minWidth: 320, minHeight: 0, overflow: "hidden" }}
+          style={monitorSideStyle}
           styles={{ body: { display: "flex", flexDirection: "column", minHeight: 0, height: "100%", overflow: "hidden" } }}
         >
           <div style={{ flex: "0 0 auto", borderBottom: "1px solid #e5e7eb", paddingBottom: 8, marginBottom: 8 }}>
             <Text>{tr("在线人数")}: {liveStudents.length} / {allStudents.length}</Text>
             <br />
             <Text type="secondary">
-              {activeAudioStudentName ? `${tr("当前播放音频")}: ${activeAudioStudentName}` : tr("当前播放音频：未选择")}
+              {`${tr("已开启音频")}: ${enabledAudioCount} / ${liveStudents.length}${mutedStudentIds.length > 0 ? ` · ${tr("已关闭")}: ${mutedStudentIds.length}` : ""}`}
             </Text>
             <Title level={5} style={{ margin: 0 }}>{tr("异常状态")}</Title>
           </div>
 
-          <div style={{ flex: 1, minHeight: 0, overflowY: "auto", paddingRight: 4, display: "flex", flexDirection: "column", gap: 8 }}>
+          <div className="app-monitor-side-scroll" style={{ flex: "1 1 auto", minHeight: 0, overflow: "hidden", paddingRight: 0 }}>
             <Title level={5} style={{ margin: 0 }}>{tr("异常通知")}</Title>
             <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-              {liveNotices.length === 0 && <Text type="secondary">{tr("等待异常检测通知...")}</Text>}
-              {liveNotices.map((notice) => {
+              {visibleNotices.length === 0 && <Text type="secondary">{tr("等待异常检测通知...")}</Text>}
+              {visibleNotices.map((notice) => {
                 const noticeKey = notice?.id || `${notice?.studentId || "x"}-${notice?.code || "unknown"}-${String(notice?.ts || Date.now())}`;
                 return (
-                  <div key={noticeKey} style={{ border: "1px solid #fecaca", borderRadius: 8, padding: "8px 10px", background: "#fff1f2" }}>
-                    <div><b>{studentNameById(notice.studentId)}</b> · {notice.label}</div>
+                  <div key={noticeKey} style={{ border: "1px solid #fecaca", borderRadius: 8, padding: isStackedLayout ? "6px 8px" : "8px 10px", background: "#fff1f2", overflow: "hidden" }}>
+                    <div style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}><b>{studentNameById(notice.studentId)}</b> · {notice.label}</div>
                     <Space size={6} wrap>
                       <Tag color={isSevere(notice.severity) ? "error" : "warning"}>{severityText(notice.severity)}</Tag>
                       <Text type="secondary">{tr("概率")}: {formatProbability(notice.probability)}</Text>
@@ -573,7 +760,9 @@ export default function TeacherMonitor() {
   );
 }
 
-function VideoCard({ student, isAudioActive, onToggleAudio }) {
+// 负责把页面中的一段独立交互逻辑拆出来，避免主组件渲染区混入过多细节。
+// 跟读这个函数时，建议同时留意它依赖了哪些 state/ref，以及执行后会触发哪些界面刷新。
+function VideoCard({ student, density = "regular", isSingleView = false, isAudioActive, onToggleAudio }) {
   const { tr } = useCatalogTranslation();
   const videoRef = useRef(null);
   const audioContextRef = useRef(null);
@@ -582,8 +771,12 @@ function VideoCard({ student, isAudioActive, onToggleAudio }) {
   const silenceMsRef = useRef(0);
   const [speakingMs, setSpeakingMs] = useState(0);
   const [audioAvailable, setAudioAvailable] = useState(false);
+  const [videoAspectRatio, setVideoAspectRatio] = useState("4 / 3");
 
+  // 这个 effect 负责在依赖变化时同步加载数据或建立/释放副作用。
+  // 阅读时可以重点看依赖数组、内部异步流程以及 return 清理逻辑三部分。
   useEffect(() => {
+    // 视频元素只是展示层；真正的媒体流状态仍由父组件统一维护。
     const videoEl = videoRef.current;
     if (!videoEl) {
       return undefined;
@@ -591,15 +784,27 @@ function VideoCard({ student, isAudioActive, onToggleAudio }) {
     videoEl.srcObject = student.stream || null;
     videoEl.muted = !isAudioActive;
     videoEl.volume = 1;
+    const syncAspectRatio = () => {
+      if (videoEl.videoWidth > 0 && videoEl.videoHeight > 0) {
+        setVideoAspectRatio(`${videoEl.videoWidth} / ${videoEl.videoHeight}`);
+      }
+    };
+    videoEl.addEventListener("loadedmetadata", syncAspectRatio);
+    videoEl.addEventListener("resize", syncAspectRatio);
     if (student.stream) {
       const playPromise = videoEl.play();
       if (playPromise?.catch) {
         playPromise.catch(() => { });
       }
     }
-    return undefined;
+    return () => {
+      videoEl.removeEventListener("loadedmetadata", syncAspectRatio);
+      videoEl.removeEventListener("resize", syncAspectRatio);
+    };
   }, [isAudioActive, student.stream]);
 
+  // 这个 effect 负责在依赖变化时同步加载数据或建立/释放副作用。
+  // 阅读时可以重点看依赖数组、内部异步流程以及 return 清理逻辑三部分。
   useEffect(() => {
     const AudioContextCtor = window.AudioContext || window.webkitAudioContext;
     const stream = student.stream;
@@ -615,6 +820,7 @@ function VideoCard({ student, isAudioActive, onToggleAudio }) {
       return undefined;
     }
 
+    // 用简单的 RMS 音量检测高亮“疑似说话”的学生，帮助教师快速聚焦风险画面。
     const ctx = new AudioContextCtor();
     const source = ctx.createMediaStreamSource(new MediaStream(audioTracks));
     const analyser = ctx.createAnalyser();
@@ -627,6 +833,8 @@ function VideoCard({ student, isAudioActive, onToggleAudio }) {
     const sampleWindowMs = 120;
     const activeThreshold = 0.035;
 
+    // 负责把页面中的一段独立交互逻辑拆出来，避免主组件渲染区混入过多细节。
+    // 跟读这个函数时，建议同时留意它依赖了哪些 state/ref，以及执行后会触发哪些界面刷新。
     const tick = () => {
       analyser.getByteTimeDomainData(data);
       let sum = 0;
@@ -672,23 +880,38 @@ function VideoCard({ student, isAudioActive, onToggleAudio }) {
   const frameOutline = isSpeaking
     ? `0 0 0 ${2 + Math.round(highlightStrength * 3)}px rgba(250, 173, 20, ${0.3 + highlightStrength * 0.4})`
     : "0 0 0 1px rgba(148, 163, 184, 0.16)";
+  const bodyPadding = density === "dense" ? 7 : density === "compact" ? 8 : 10;
+  const metaGap = density === "dense" ? 6 : 8;
+  const nameFontSize = density === "dense" ? 13 : 14;
+  const buttonSize = density === "dense" ? "small" : "small";
 
   return (
     <Card
       size="small"
+      className={`app-monitor-card is-${density}`}
       style={{
         borderRadius: 10,
         background: "rgba(255,255,255,0.55)",
         boxShadow: cardShadow,
         border: isSpeaking ? "1px solid rgba(250, 173, 20, 0.72)" : "1px solid rgba(226, 232, 240, 0.9)",
         transition: "box-shadow 160ms ease, border-color 160ms ease",
+        alignSelf: isSingleView ? "stretch" : "start",
+        justifySelf: isSingleView ? "center" : "stretch",
+        width: "100%",
+        maxWidth: isSingleView ? "min(100%, 980px)" : "100%",
+        minWidth: 0,
+        height: isSingleView ? "100%" : "auto",
+        maxHeight: "100%",
+        overflow: "hidden",
       }}
-      styles={{ body: { padding: 10 } }}
+      styles={{ body: { padding: bodyPadding, minWidth: 0, minHeight: 0, height: "100%", overflow: "hidden", display: "flex", flexDirection: "column" } }}
     >
       <div
         style={{
           width: "100%",
-          aspectRatio: "16 / 9",
+          flex: isSingleView ? "1 1 auto" : "0 0 auto",
+          minHeight: 0,
+          aspectRatio: isSingleView ? undefined : videoAspectRatio,
           background: "#111",
           borderRadius: 8,
           overflow: "hidden",
@@ -696,14 +919,14 @@ function VideoCard({ student, isAudioActive, onToggleAudio }) {
           transition: "box-shadow 160ms ease",
         }}
       >
-        <video ref={videoRef} autoPlay playsInline style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+        <video ref={videoRef} autoPlay playsInline style={{ width: "100%", height: "100%", objectFit: "contain", background: "#111" }} />
       </div>
-      <div style={{ marginTop: 8, fontWeight: 600 }}>{student.studentName}</div>
-      <Space size={8} wrap style={{ marginTop: 8 }}>
+      <div style={{ marginTop: metaGap, fontWeight: 600, fontSize: nameFontSize, lineHeight: 1.3, overflowWrap: "anywhere" }}>{student.studentName}</div>
+      <Space size={density === "dense" ? 6 : 8} wrap style={{ marginTop: metaGap }}>
         <Tag color={!audioAvailable ? "default" : isSpeaking ? "gold" : "blue"}>
           {!audioAvailable ? tr("无音频") : isSpeaking ? `${tr("说话中")} ${(speakingMs / 1000).toFixed(1)}s` : tr("环境安静")}
         </Tag>
-        <Button size="small" type={isAudioActive ? "primary" : "default"} disabled={!audioAvailable} onClick={() => onToggleAudio(student.studentId)}>
+        <Button size={buttonSize} type={isAudioActive ? "primary" : "default"} disabled={!audioAvailable} onClick={() => onToggleAudio(student.studentId)}>
           {isAudioActive ? tr("关闭声音") : tr("播放声音")}
         </Button>
       </Space>

@@ -1,3 +1,4 @@
+// TeacherLayout 负责教师端导航、壳层和路由出口，把任务页与证据页组织成统一工作台。
 import { Outlet, useLocation, useNavigate } from "react-router-dom";
 import { Button, Card, Space, Typography } from "antd";
 import { useEffect, useState } from "react";
@@ -35,6 +36,8 @@ export default function TeacherLayout() {
     const [profile, setProfile] = useState(null);
     const { tr } = useCatalogTranslation();
 
+    // 这个 effect 负责在依赖变化时同步加载数据或建立/释放副作用。
+    // 阅读时可以重点看依赖数组、内部异步流程以及 return 清理逻辑三部分。
     useEffect(() => {
         api.get("/teacher/profile").then((r) => setProfile(r.data)).catch(() => setProfile(null));
     }, []);

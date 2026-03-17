@@ -7,6 +7,9 @@ import org.springframework.messaging.simp.SimpMessagingTemplate;
 import org.springframework.stereotype.Controller;
 
 import java.util.Map;
+/**
+ * ExamSignalController 负责考试实时信令的 WebSocket/STOMP 入口，连接学生端与教师端。
+ */
 
 @Controller
 @RequiredArgsConstructor

@@ -7,6 +7,9 @@ import org.apache.ibatis.annotations.Param;
 import org.apache.ibatis.annotations.Select;
 
 import java.util.List;
+/**
+ * RecordingSegmentMapper 定义对应实体的数据库访问方法，供服务层查询和更新数据。
+ */
 
 @Mapper
 public interface RecordingSegmentMapper extends BaseMapper<RecordingSegmentEntity> {

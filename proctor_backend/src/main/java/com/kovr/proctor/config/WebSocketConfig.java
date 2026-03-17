@@ -5,6 +5,9 @@ import org.springframework.context.annotation.Configuration;
 import org.springframework.messaging.simp.config.MessageBrokerRegistry;
 import org.springframework.util.StringUtils;
 import org.springframework.web.socket.config.annotation.*;
+/**
+ * WebSocketConfig 配置 STOMP 端点和消息代理，使实时监考通信可以在前后端之间流转。
+ */
 
 @Configuration
 @EnableWebSocketMessageBroker

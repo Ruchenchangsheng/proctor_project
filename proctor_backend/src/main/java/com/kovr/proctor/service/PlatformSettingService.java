@@ -15,6 +15,9 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
+/**
+ * PlatformSettingService 负责读取和更新平台级配置项，为安全策略和系统行为提供参数。
+ */
 
 @Service
 @DependsOn("databaseSchemaInitializer")
@@ -59,6 +62,10 @@ public class PlatformSettingService {
     @Value("${anomaly.evidence.dir:./data/anomaly-evidence}")
     private String evidenceDir;
 
+    /**
+     * 封装当前类中的一段独立业务步骤，减少调用方直接处理过多细节。
+     * 阅读这个方法时，可以重点关注它读取了哪些输入、修改了哪些状态，以及异常或边界条件如何处理。
+     */
     @PostConstruct
     public void seedDefaults() {
         seed("base", "serverPort", serverPort, "STRING");
@@ -96,6 +103,10 @@ public class PlatformSettingService {
         seed("storage", "warningThresholdGb", 20, "INT");
     }
 
+    /**
+     * 读取或查询当前业务场景下需要的数据。
+     * 阅读这个方法时，可以重点关注它读取了哪些输入、修改了哪些状态，以及异常或边界条件如何处理。
+     */
     public Map<String, Object> getGroupedSettings() {
         Map<String, Object> grouped = new LinkedHashMap<>();
         for (PlatformSettingEntity entity : listAll()) {
@@ -105,6 +116,10 @@ public class PlatformSettingService {
         return grouped;
     }
 
+    /**
+     * 更新当前业务状态，并把变更写回数据库、内存或界面状态。
+     * 阅读这个方法时，可以重点关注它读取了哪些输入、修改了哪些状态，以及异常或边界条件如何处理。
+     */
     public void updateGroup(String group, Map<String, Object> values, Long actorUserId) {
         if (group == null || values == null) {
             return;
@@ -112,6 +127,10 @@ public class PlatformSettingService {
         values.forEach((key, value) -> upsert(group, key, value, inferValueType(value), actorUserId));
     }
 
+    /**
+     * 读取或查询当前业务场景下需要的数据。
+     * 阅读这个方法时，可以重点关注它读取了哪些输入、修改了哪些状态，以及异常或边界条件如何处理。
+     */
     public int getInt(String group, String key, int defaultValue) {
         Object value = getValue(group, key);
         if (value instanceof Number number) {
@@ -120,6 +139,10 @@ public class PlatformSettingService {
         return value == null ? defaultValue : Integer.parseInt(String.valueOf(value));
     }
 
+    /**
+     * 读取或查询当前业务场景下需要的数据。
+     * 阅读这个方法时，可以重点关注它读取了哪些输入、修改了哪些状态，以及异常或边界条件如何处理。
+     */
     public long getLong(String group, String key, long defaultValue) {
         Object value = getValue(group, key);
         if (value instanceof Number number) {
@@ -128,6 +151,10 @@ public class PlatformSettingService {
         return value == null ? defaultValue : Long.parseLong(String.valueOf(value));
     }
 
+    /**
+     * 读取或查询当前业务场景下需要的数据。
+     * 阅读这个方法时，可以重点关注它读取了哪些输入、修改了哪些状态，以及异常或边界条件如何处理。
+     */
     public double getDouble(String group, String key, double defaultValue) {
         Object value = getValue(group, key);
         if (value instanceof Number number) {
@@ -136,6 +163,10 @@ public class PlatformSettingService {
         return value == null ? defaultValue : Double.parseDouble(String.valueOf(value));
     }
 
+    /**
+     * 读取或查询当前业务场景下需要的数据。
+     * 阅读这个方法时，可以重点关注它读取了哪些输入、修改了哪些状态，以及异常或边界条件如何处理。
+     */
     public boolean getBoolean(String group, String key, boolean defaultValue) {
         Object value = getValue(group, key);
         if (value instanceof Boolean bool) {
@@ -144,11 +175,19 @@ public class PlatformSettingService {
         return value == null ? defaultValue : Boolean.parseBoolean(String.valueOf(value));
     }
 
+    /**
+     * 读取或查询当前业务场景下需要的数据。
+     * 阅读这个方法时，可以重点关注它读取了哪些输入、修改了哪些状态，以及异常或边界条件如何处理。
+     */
     public String getString(String group, String key, String defaultValue) {
         Object value = getValue(group, key);
         return value == null ? defaultValue : String.valueOf(value);
     }
 
+    /**
+     * 读取或查询当前业务场景下需要的数据。
+     * 阅读这个方法时，可以重点关注它读取了哪些输入、修改了哪些状态，以及异常或边界条件如何处理。
+     */
     private Object getValue(String group, String key) {
         PlatformSettingEntity entity = platformSettingMapper.selectOne(new LambdaQueryWrapper<PlatformSettingEntity>()
                 .eq(PlatformSettingEntity::getSettingGroup, group)
@@ -157,6 +196,10 @@ public class PlatformSettingService {
         return entity == null ? null : convert(entity.getSettingValue(), entity.getValueType());
     }
 
+    /**
+     * 封装当前类中的一段独立业务步骤，减少调用方直接处理过多细节。
+     * 阅读这个方法时，可以重点关注它读取了哪些输入、修改了哪些状态，以及异常或边界条件如何处理。
+     */
     private void seed(String group, String key, Object value, String valueType) {
         PlatformSettingEntity existed = platformSettingMapper.selectOne(new LambdaQueryWrapper<PlatformSettingEntity>()
                 .eq(PlatformSettingEntity::getSettingGroup, group)
@@ -168,6 +211,10 @@ public class PlatformSettingService {
         upsert(group, key, value, valueType, null);
     }
 
+    /**
+     * 封装当前类中的一段独立业务步骤，减少调用方直接处理过多细节。
+     * 阅读这个方法时，可以重点关注它读取了哪些输入、修改了哪些状态，以及异常或边界条件如何处理。
+     */
     private void upsert(String group, String key, Object value, String valueType, Long actorUserId) {
         PlatformSettingEntity entity = platformSettingMapper.selectOne(new LambdaQueryWrapper<PlatformSettingEntity>()
                 .eq(PlatformSettingEntity::getSettingGroup, group)
@@ -189,16 +236,28 @@ public class PlatformSettingService {
         }
     }
 
+    /**
+     * 读取或查询当前业务场景下需要的数据。
+     * 阅读这个方法时，可以重点关注它读取了哪些输入、修改了哪些状态，以及异常或边界条件如何处理。
+     */
     private List<PlatformSettingEntity> listAll() {
         return platformSettingMapper.selectList(new LambdaQueryWrapper<PlatformSettingEntity>()
                 .orderByAsc(PlatformSettingEntity::getSettingGroup, PlatformSettingEntity::getSettingKey));
     }
 
+    /**
+     * 封装当前类中的一段独立业务步骤，减少调用方直接处理过多细节。
+     * 阅读这个方法时，可以重点关注它读取了哪些输入、修改了哪些状态，以及异常或边界条件如何处理。
+     */
     @SuppressWarnings("unchecked")
     private Map<String, Object> castMap(Object value) {
         return (Map<String, Object>) value;
     }
 
+    /**
+     * 封装当前类中的一段独立业务步骤，减少调用方直接处理过多细节。
+     * 阅读这个方法时，可以重点关注它读取了哪些输入、修改了哪些状态，以及异常或边界条件如何处理。
+     */
     private Object convert(String value, String valueType) {
         if (value == null) {
             return null;
@@ -213,6 +272,10 @@ public class PlatformSettingService {
         };
     }
 
+    /**
+     * 封装当前类中的一段独立业务步骤，减少调用方直接处理过多细节。
+     * 阅读这个方法时，可以重点关注它读取了哪些输入、修改了哪些状态，以及异常或边界条件如何处理。
+     */
     private String inferValueType(Object value) {
         if (value instanceof Boolean) return "BOOLEAN";
         if (value instanceof Integer) return "INT";
@@ -221,6 +284,10 @@ public class PlatformSettingService {
         return "STRING";
     }
 
+    /**
+     * 封装当前类中的一段独立业务步骤，减少调用方直接处理过多细节。
+     * 阅读这个方法时，可以重点关注它读取了哪些输入、修改了哪些状态，以及异常或边界条件如何处理。
+     */
     private String firstNonBlank(String... values) {
         if (values == null) {
             return "";

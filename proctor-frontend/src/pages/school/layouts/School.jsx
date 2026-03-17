@@ -1,3 +1,4 @@
+// School 作为学校管理员端的旧入口或兼容页面，承接历史路由访问。
 import React, { useEffect, useState } from "react";
 import { api } from "../../apiClient";
 import { Card, Form, Input, Select, Button, Upload, Typography, message, Row, Col, List } from "antd";
@@ -10,6 +11,8 @@ export default function School() {
   const [departments, setDepts] = useState([]);
   const [majors, setMajors] = useState([]);
 
+  // 这个 effect 负责在依赖变化时同步加载数据或建立/释放副作用。
+  // 阅读时可以重点看依赖数组、内部异步流程以及 return 清理逻辑三部分。
   useEffect(() => {
     (async () => {
       try {
@@ -21,6 +24,8 @@ export default function School() {
     })();
   }, []);
 
+  // 负责把页面中的一段独立交互逻辑拆出来，避免主组件渲染区混入过多细节。
+  // 跟读这个函数时，建议同时留意它依赖了哪些 state/ref，以及执行后会触发哪些界面刷新。
   async function addDept(values) {
     const name = values.dept.trim(); if (!name) return;
     try {
@@ -31,6 +36,8 @@ export default function School() {
     } catch (e) { message.error(e.message); }
   }
 
+  // 负责把页面中的一段独立交互逻辑拆出来，避免主组件渲染区混入过多细节。
+  // 跟读这个函数时，建议同时留意它依赖了哪些 state/ref，以及执行后会触发哪些界面刷新。
   async function addMajor(values) {
     const departmentId = Number(values.departmentId);
     const name = values.major.trim();
@@ -42,6 +49,8 @@ export default function School() {
     } catch (e) { message.error(e.message); }
   }
 
+  // 负责把页面中的一段独立交互逻辑拆出来，避免主组件渲染区混入过多细节。
+  // 跟读这个函数时，建议同时留意它依赖了哪些 state/ref，以及执行后会触发哪些界面刷新。
   async function addTeacher(values) {
     const payload = { email: values.t_email, name: values.t_name, departmentId: Number(values.t_departmentId) };
     try {
@@ -50,6 +59,8 @@ export default function School() {
     } catch (e) { message.error(e.message); }
   }
 
+  // 负责把页面中的一段独立交互逻辑拆出来，避免主组件渲染区混入过多细节。
+  // 跟读这个函数时，建议同时留意它依赖了哪些 state/ref，以及执行后会触发哪些界面刷新。
   async function addStudent(values) {
     if (!values.photo || values.photo.fileList.length === 0) {
       message.error("请上传照片"); return;

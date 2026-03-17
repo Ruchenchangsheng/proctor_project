@@ -1,3 +1,4 @@
+// Admin 页面负责平台管理员维护学校列表、新增学校等平台级操作。
 import { useEffect, useState } from "react";
 import { api } from "../apiClient";
 import { Button, Card, Form, Input, Modal, Popconfirm, Select, Space, Table, Tag, Typography, message } from "antd";
@@ -24,12 +25,16 @@ export default function Admin({ mode = "list" }) {
   const showAdd = mode === "add";
   const showList = mode === "list";
 
+  // 这个 effect 负责在依赖变化时同步加载数据或建立/释放副作用。
+  // 阅读时可以重点看依赖数组、内部异步流程以及 return 清理逻辑三部分。
   useEffect(() => {
     if (showList) {
       load();
     }
   }, [showList]);
 
+  // 负责读取当前页面所需的数据，并把结果同步到 state 中。
+  // 跟读这个函数时，建议同时留意它依赖了哪些 state/ref，以及执行后会触发哪些界面刷新。
   async function load(extra = {}) {
     setLoading(true);
     try {
@@ -49,6 +54,8 @@ export default function Admin({ mode = "list" }) {
     }
   }
 
+  // 负责处理当前页面的提交型交互，并在成功后刷新界面状态。
+  // 跟读这个函数时，建议同时留意它依赖了哪些 state/ref，以及执行后会触发哪些界面刷新。
   async function onFinish(values) {
     setSaving(true);
     try {
@@ -62,6 +69,8 @@ export default function Admin({ mode = "list" }) {
     }
   }
 
+  // 负责处理当前页面的提交型交互，并在成功后刷新界面状态。
+  // 跟读这个函数时，建议同时留意它依赖了哪些 state/ref，以及执行后会触发哪些界面刷新。
   function openEdit(record) {
     setEditingSchool(record);
     editForm.setFieldsValue({
@@ -73,6 +82,8 @@ export default function Admin({ mode = "list" }) {
     setEditOpen(true);
   }
 
+  // 负责处理当前页面的提交型交互，并在成功后刷新界面状态。
+  // 跟读这个函数时，建议同时留意它依赖了哪些 state/ref，以及执行后会触发哪些界面刷新。
   async function submitEdit(values) {
     if (!editingSchool?.id) return;
     setSaving(true);
@@ -89,6 +100,8 @@ export default function Admin({ mode = "list" }) {
     }
   }
 
+  // 负责切换界面状态或执行带副作用的收尾动作。
+  // 跟读这个函数时，建议同时留意它依赖了哪些 state/ref，以及执行后会触发哪些界面刷新。
   async function toggleSchool(record, nextEnabled) {
     try {
       const res = await api.post(`/admin/schools/${record.id}/toggle-enabled`, { enabled: nextEnabled });
@@ -99,6 +112,8 @@ export default function Admin({ mode = "list" }) {
     }
   }
 
+  // 表格列配置集中描述了当前页面最核心的展示字段和每列的交互行为。
+  // 如果你想理解页面允许用户做什么，优先看这里的 render、按钮和状态标签。
   const columns = [
     { title: "学校名称", dataIndex: "name", width: 180, ellipsis: true },
     { title: "邮箱域", dataIndex: "domain", width: 180, ellipsis: true, render: (text) => text || "-" },
@@ -145,7 +160,7 @@ export default function Admin({ mode = "list" }) {
         <Card className="glass-effect" variant={false} style={{ borderRadius: 12 }}>
           <Title level={4} style={{ marginTop: 0, marginBottom: 20 }}>添加学校与学校管理员</Title>
           <Form form={form} layout="vertical" onFinish={onFinish}>
-            <div style={{ display: "grid", gridTemplateColumns: "repeat(2, minmax(260px, 1fr))", gap: 16 }}>
+            <div className="app-form-grid-2">
               <Form.Item name="schoolName" label="学校名称" rules={[{ required: true, message: "请输入学校名称" }]}>
                 <Input placeholder="输入学校名称" />
               </Form.Item>

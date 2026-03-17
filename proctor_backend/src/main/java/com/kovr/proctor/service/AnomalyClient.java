@@ -15,6 +15,9 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
+/**
+ * AnomalyClient 负责把监考帧发送给异常检测服务，并接收模型输出的异常结果。
+ */
 
 @Service
 @RequiredArgsConstructor
@@ -32,12 +35,21 @@ public class AnomalyClient {
     @Value("${anomaly.log-empty-interval-ms:3000}")
     long logEmptyIntervalMs;
 
+    /**
+     * 封装当前类中的一段独立业务步骤，减少调用方直接处理过多细节。
+     * 阅读这个方法时，可以重点关注它读取了哪些输入、修改了哪些状态，以及异常或边界条件如何处理。
+     */
     @SuppressWarnings("unchecked")
     public List<Map<String, Object>> detect(Long roomId, Long studentId, byte[] bytes, String mime, long tsMs) {
         if (base == null || base.isBlank()) return List.of();
         try {
+            // Python 服务需要房间、学生和时间戳一起上送，才能维持每个学生独立的在线状态机。
             var body = new LinkedMultiValueMap<String, Object>();
             body.add("file", new ByteArrayResource(bytes) {
+                /**
+                 * 读取或查询当前业务场景下需要的数据。
+                 * 阅读这个方法时，可以重点关注它读取了哪些输入、修改了哪些状态，以及异常或边界条件如何处理。
+                 */
                 @Override
                 public String getFilename() { return "frame.jpg"; }
             });
@@ -91,6 +103,10 @@ public class AnomalyClient {
         }
     }
 
+    /**
+     * 封装当前类中的一段独立业务步骤，减少调用方直接处理过多细节。
+     * 阅读这个方法时，可以重点关注它读取了哪些输入、修改了哪些状态，以及异常或边界条件如何处理。
+     */
     private void logDetectionResult(
             Long roomId,
             Long studentId,
@@ -114,6 +130,7 @@ public class AnomalyClient {
         String key = roomId + ":" + studentId;
         long now = System.currentTimeMillis();
         Long lastAt = lastEmptyResultLogAt.get(key);
+        // 没有异常是常态，这里限流日志，避免把正常监考流刷满日志文件。
         if (lastAt != null && now - lastAt < logEmptyIntervalMs) {
             return;
         }
@@ -124,6 +141,10 @@ public class AnomalyClient {
         );
     }
 
+    /**
+     * 封装当前类中的一段独立业务步骤，减少调用方直接处理过多细节。
+     * 阅读这个方法时，可以重点关注它读取了哪些输入、修改了哪些状态，以及异常或边界条件如何处理。
+     */
     private Map<String, Object> summarizeResponse(Map<String, Object> resp) {
         return Map.of(
                 "ok", resp.get("ok"),
@@ -137,6 +158,10 @@ public class AnomalyClient {
         );
     }
 
+    /**
+     * 封装当前类中的一段独立业务步骤，减少调用方直接处理过多细节。
+     * 阅读这个方法时，可以重点关注它读取了哪些输入、修改了哪些状态，以及异常或边界条件如何处理。
+     */
     private int extractEventCount(Object events) {
         if (events instanceof List<?> list) {
             return list.size();

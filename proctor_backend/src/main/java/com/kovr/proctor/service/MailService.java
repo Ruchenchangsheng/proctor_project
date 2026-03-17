@@ -9,6 +9,9 @@ import org.springframework.mail.javamail.MimeMessageHelper;
 import org.springframework.stereotype.Service;
 
 import jakarta.mail.internet.InternetAddress;
+/**
+ * MailService 封装邮件发送能力，用于发放账号、密码和通知。
+ */
 
 @Service
 @RequiredArgsConstructor
@@ -32,6 +35,10 @@ public class MailService {
         return sendPlainTextMail(to, rendered.subject(), rendered.content());
     }
 
+    /**
+     * 向外部模块、前端页面或实时通道发送当前结果。
+     * 阅读这个方法时，可以重点关注它读取了哪些输入、修改了哪些状态，以及异常或边界条件如何处理。
+     */
     public boolean sendPasswordReset(String to, String name, String email, String rawPwd) {
         var rendered = notificationTemplateService.render("PASSWORD_RESET", java.util.Map.of(
                 "name", name == null ? "" : name,
@@ -40,6 +47,10 @@ public class MailService {
         return sendPlainTextMail(to, rendered.subject(), rendered.content());
     }
 
+    /**
+     * 向外部模块、前端页面或实时通道发送当前结果。
+     * 阅读这个方法时，可以重点关注它读取了哪些输入、修改了哪些状态，以及异常或边界条件如何处理。
+     */
     private boolean sendPlainTextMail(String to, String subject, String text) {
         if (!mailEnabled) {
             log.info("Mail disabled by config, skip sending to {}", to);

@@ -1,3 +1,4 @@
+// SchoolEvidenceExamsPage 汇总学校范围内可追溯的考试证据，并按考试维度组织入口。
 import { useEffect, useMemo, useState } from "react";
 import { useNavigate, useOutletContext } from "react-router-dom";
 import { api } from "../../apiClient";
@@ -7,6 +8,8 @@ import useCatalogTranslation from "../../i18n/useCatalogTranslation";
 
 const { Title, Text } = Typography;
 
+// 负责把输入数据整理成当前页面更容易消费的格式。
+// 跟读这个函数时，建议同时留意它依赖了哪些 state/ref，以及执行后会触发哪些界面刷新。
 function formatTs(value, locale) {
   const date = new Date(Number(value) || value || Date.now());
   if (Number.isNaN(date.getTime())) return "-";
@@ -21,6 +24,8 @@ export default function SchoolEvidenceExamsPage() {
   const [keyword, setKeyword] = useState("");
   const [msg, setMsg] = useState("");
 
+  // 这个 effect 负责在依赖变化时同步加载数据或建立/释放副作用。
+  // 阅读时可以重点看依赖数组、内部异步流程以及 return 清理逻辑三部分。
   useEffect(() => {
     if (!school?.id) return;
     api.get(`/evidence/school/${school.id}`)
@@ -53,7 +58,7 @@ export default function SchoolEvidenceExamsPage() {
   const joiner = language === "zh-CN" ? "、" : ", ";
 
   return (
-    <Card className="glass-effect" variant="borderless" style={{ borderRadius: 16, height: "100%", overflowY: "auto" }}>
+    <Card className="glass-effect" variant="borderless" style={{ borderRadius: 16 }}>
       <Space direction="vertical" size={12} style={{ width: "100%" }}>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 12, flexWrap: "wrap" }}>
           <div>

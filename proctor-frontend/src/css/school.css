@@ -1,3 +1,4 @@
+/* school 维护一组可复用的样式片段，供页面统一调用。 */
 .school-topbar {
   height: 56px;
   background: #ffffff;

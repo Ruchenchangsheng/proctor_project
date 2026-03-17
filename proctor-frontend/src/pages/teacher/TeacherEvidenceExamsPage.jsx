@@ -1,3 +1,4 @@
+// TeacherEvidenceExamsPage 汇总教师可查看的考试证据入口，按考试维度组织异常记录。
 import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { api } from "../../apiClient";
@@ -12,6 +13,8 @@ export default function TeacherEvidenceExamsPage() {
     const [msg, setMsg] = useState("");
     const navigate = useNavigate();
 
+    // 这个 effect 负责在依赖变化时同步加载数据或建立/释放副作用。
+    // 阅读时可以重点看依赖数组、内部异步流程以及 return 清理逻辑三部分。
     useEffect(() => {
         api.get("/teacher/invigilations", { params: { phase: "COMPLETED" } })
             .then((r) => setTasks(r.data || []))
@@ -21,7 +24,7 @@ export default function TeacherEvidenceExamsPage() {
     const exams = useMemo(() => tasks || [], [tasks]);
 
     return (
-        <Card className="glass-effect" variant="borderless" style={{ borderRadius: 16, height: "100%", overflowY: "auto" }}>
+        <Card className="glass-effect" variant="borderless" style={{ borderRadius: 16 }}>
             <Title level={5} style={{ marginTop: 0 }}>{tr("作弊证据 - 已完成考试")}</Title>
             {!!msg && <Text type="danger">{msg}</Text>}
             <List

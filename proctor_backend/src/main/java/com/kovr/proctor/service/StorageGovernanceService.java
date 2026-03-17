@@ -18,6 +18,9 @@ import java.time.LocalDateTime;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+/**
+ * StorageGovernanceService 负责监考证据和运行文件的目录治理与生命周期管理。
+ */
 
 @Service
 @RequiredArgsConstructor
@@ -28,6 +31,10 @@ public class StorageGovernanceService {
     private final RecordingSegmentMapper recordingSegmentMapper;
     private final AuditLogService auditLogService;
 
+    /**
+     * 读取或查询当前业务场景下需要的数据。
+     * 阅读这个方法时，可以重点关注它读取了哪些输入、修改了哪些状态，以及异常或边界条件如何处理。
+     */
     public Map<String, Object> getStorageOverview() {
         Path baseDir = Paths.get(platformSettingService.getString("storage", "evidenceDir", "./data/anomaly-evidence")).toAbsolutePath().normalize();
         long totalBytes = safeDirectoryBytes(baseDir);
@@ -51,6 +58,10 @@ public class StorageGovernanceService {
         return storage;
     }
 
+    /**
+     * 封装当前类中的一段独立业务步骤，减少调用方直接处理过多细节。
+     * 阅读这个方法时，可以重点关注它读取了哪些输入、修改了哪些状态，以及异常或边界条件如何处理。
+     */
     public Map<String, Object> cleanupExpired() {
         int evidenceRetentionDays = platformSettingService.getInt("storage", "evidenceRetentionDays", 180);
         int recordingRetentionDays = platformSettingService.getInt("storage", "recordingRetentionDays", 30);
@@ -83,6 +94,10 @@ public class StorageGovernanceService {
         return result;
     }
 
+    /**
+     * 封装当前类中的一段独立业务步骤，减少调用方直接处理过多细节。
+     * 阅读这个方法时，可以重点关注它读取了哪些输入、修改了哪些状态，以及异常或边界条件如何处理。
+     */
     @Scheduled(cron = "0 30 3 * * *")
     public void cleanupExpiredScheduled() {
         if (!platformSettingService.getBoolean("storage", "cleanupEnabled", true)) {
@@ -95,16 +110,28 @@ public class StorageGovernanceService {
         }
     }
 
+    /**
+     * 封装当前类中的一段独立业务步骤，减少调用方直接处理过多细节。
+     * 阅读这个方法时，可以重点关注它读取了哪些输入、修改了哪些状态，以及异常或边界条件如何处理。
+     */
     private int countExpiredEvidences(int retentionDays) {
         return Math.toIntExact(anomalyEvidenceMapper.selectCount(new LambdaQueryWrapper<AnomalyEvidenceEntity>()
                 .lt(AnomalyEvidenceEntity::getCreatedAt, LocalDateTime.now().minusDays(Math.max(1, retentionDays)))));
     }
 
+    /**
+     * 封装当前类中的一段独立业务步骤，减少调用方直接处理过多细节。
+     * 阅读这个方法时，可以重点关注它读取了哪些输入、修改了哪些状态，以及异常或边界条件如何处理。
+     */
     private int countExpiredRecordings(int retentionDays) {
         return Math.toIntExact(recordingSegmentMapper.selectCount(new LambdaQueryWrapper<RecordingSegmentEntity>()
                 .lt(RecordingSegmentEntity::getCreatedAt, LocalDateTime.now().minusDays(Math.max(1, retentionDays)))));
     }
 
+    /**
+     * 封装当前类中的一段独立业务步骤，减少调用方直接处理过多细节。
+     * 阅读这个方法时，可以重点关注它读取了哪些输入、修改了哪些状态，以及异常或边界条件如何处理。
+     */
     private long safeDirectoryBytes(Path path) {
         if (path == null || !Files.exists(path)) {
             return 0L;
@@ -122,6 +149,10 @@ public class StorageGovernanceService {
         }
     }
 
+    /**
+     * 执行删除、重置或状态切换操作，并处理随后的收尾动作。
+     * 阅读这个方法时，可以重点关注它读取了哪些输入、修改了哪些状态，以及异常或边界条件如何处理。
+     */
     private void deleteFile(String filePath) {
         if (filePath == null || filePath.isBlank()) {
             return;
@@ -132,6 +163,10 @@ public class StorageGovernanceService {
         }
     }
 
+    /**
+     * 把输入值转换成当前模块更容易继续处理的标准格式。
+     * 阅读这个方法时，可以重点关注它读取了哪些输入、修改了哪些状态，以及异常或边界条件如何处理。
+     */
     private double formatGb(long bytes) {
         return Math.round((bytes / 1024d / 1024d / 1024d) * 100d) / 100d;
     }

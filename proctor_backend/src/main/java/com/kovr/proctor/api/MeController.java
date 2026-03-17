@@ -14,6 +14,9 @@ import org.springframework.web.bind.annotation.RestController;
 
 import java.util.LinkedHashMap;
 import java.util.Map;
+/**
+ * MeController 返回当前登录用户的身份画像与角色上下文，供前端恢复登录态。
+ */
 
 @RestController
 @RequiredArgsConstructor

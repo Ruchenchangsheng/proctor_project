@@ -5,6 +5,9 @@ import org.springframework.stereotype.Service;
 
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
+/**
+ * AnomalyPolicyService 负责读取和更新学校级异常判定策略。
+ */
 
 @Service
 public class AnomalyPolicyService {

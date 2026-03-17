@@ -1,3 +1,4 @@
+// modalStyles 维护一组可复用的样式片段，供页面统一调用。
 export const opaqueWhiteModalStyles = {
   content: {
     background: "#ffffff",

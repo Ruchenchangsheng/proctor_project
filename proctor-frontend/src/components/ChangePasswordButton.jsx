@@ -1,3 +1,4 @@
+// ChangePasswordButton 封装修改密码弹窗与提交逻辑，便于多个页面复用同一安全流程。
 import { useEffect, useState } from "react";
 import { Button, Form, Input, Modal, message } from "antd";
 import { LockOutlined } from "@ant-design/icons";
@@ -7,6 +8,8 @@ import { useAuthStore } from "../store/auth";
 import { useTranslation } from "react-i18next";
 import { translateSourceText } from "../i18n/catalog";
 
+// 负责把输入数据整理成当前页面更容易消费的格式。
+// 跟读这个函数时，建议同时留意它依赖了哪些 state/ref，以及执行后会触发哪些界面刷新。
 function sanitizePassword(value) {
   return String(value ?? "").replace(/\s+/g, "");
 }
@@ -26,12 +29,16 @@ export default function ChangePasswordButton({
   const me = useAuthStore((s) => s.me);
   const setMe = useAuthStore((s) => s.setMe);
 
+  // 这个 effect 负责在依赖变化时同步加载数据或建立/释放副作用。
+  // 阅读时可以重点看依赖数组、内部异步流程以及 return 清理逻辑三部分。
   useEffect(() => {
     if (defaultOpen) {
       setOpen(true);
     }
   }, [defaultOpen]);
 
+  // 负责处理当前页面的提交型交互，并在成功后刷新界面状态。
+  // 跟读这个函数时，建议同时留意它依赖了哪些 state/ref，以及执行后会触发哪些界面刷新。
   async function submit(values) {
     const payload = {
       oldPassword: sanitizePassword(values.oldPassword),

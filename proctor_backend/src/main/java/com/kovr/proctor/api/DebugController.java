@@ -10,6 +10,9 @@ import org.springframework.web.bind.annotation.RestController;
 
 import java.util.LinkedHashMap;
 import java.util.Map;
+/**
+ * DebugController 提供开发或排障阶段使用的调试接口。
+ */
 
 @RestController
 @RequestMapping("/api/_debug")

@@ -1,3 +1,4 @@
+// SchoolExamPolicyPage 用于维护学校的异常判定策略和监考参数。
 import { useEffect, useState } from "react";
 import { useOutletContext } from "react-router-dom";
 import { Button, Card, Form, InputNumber, Typography, message } from "antd";
@@ -13,11 +14,15 @@ export default function SchoolExamPolicyPage() {
   const [policySaving, setPolicySaving] = useState(false);
   const [policyForm] = Form.useForm();
 
+  // 这个 effect 负责在依赖变化时同步加载数据或建立/释放副作用。
+  // 阅读时可以重点看依赖数组、内部异步流程以及 return 清理逻辑三部分。
   useEffect(() => {
     if (!school?.id) return;
     loadAnomalyPolicy();
   }, [school?.id]);
 
+  // 负责读取当前页面所需的数据，并把结果同步到 state 中。
+  // 跟读这个函数时，建议同时留意它依赖了哪些 state/ref，以及执行后会触发哪些界面刷新。
   async function loadAnomalyPolicy() {
     try {
       const r = await api.get(`/school/${school.id}/anomaly-policy`);
@@ -29,6 +34,8 @@ export default function SchoolExamPolicyPage() {
     }
   }
 
+  // 负责处理当前页面的提交型交互，并在成功后刷新界面状态。
+  // 跟读这个函数时，建议同时留意它依赖了哪些 state/ref，以及执行后会触发哪些界面刷新。
   async function saveAnomalyPolicy(values) {
     setPolicySaving(true);
     try {

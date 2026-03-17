@@ -8,6 +8,9 @@ import org.apache.ibatis.annotations.Select;
 
 import java.util.List;
 import java.util.Map;
+/**
+ * TeacherMapper 定义对应实体的数据库访问方法，供服务层查询和更新数据。
+ */
 
 @Mapper
 public interface TeacherMapper extends BaseMapper<TeacherEntity> {

@@ -1,3 +1,4 @@
+// AdminSchoolAdminsPage 负责平台管理员维护各学校管理员账号。
 import { useEffect, useMemo, useState } from "react";
 import { api } from "../../apiClient";
 import { Button, Card, Form, Input, Modal, Popconfirm, Select, Space, Table, Tag, Typography, message } from "antd";
@@ -18,10 +19,14 @@ export default function AdminSchoolAdminsPage() {
   const [saving, setSaving] = useState(false);
   const [editForm] = Form.useForm();
 
+  // 这个 effect 负责在依赖变化时同步加载数据或建立/释放副作用。
+  // 阅读时可以重点看依赖数组、内部异步流程以及 return 清理逻辑三部分。
   useEffect(() => {
     initialize();
   }, []);
 
+  // 负责读取当前页面所需的数据，并把结果同步到 state 中。
+  // 跟读这个函数时，建议同时留意它依赖了哪些 state/ref，以及执行后会触发哪些界面刷新。
   async function initialize() {
     try {
       const schoolResp = await api.get("/admin/schools");
@@ -32,6 +37,8 @@ export default function AdminSchoolAdminsPage() {
     }
   }
 
+  // 负责读取当前页面所需的数据，并把结果同步到 state 中。
+  // 跟读这个函数时，建议同时留意它依赖了哪些 state/ref，以及执行后会触发哪些界面刷新。
   async function load(nextFilters = filters) {
     setLoading(true);
     try {
@@ -55,6 +62,8 @@ export default function AdminSchoolAdminsPage() {
     [schools],
   );
 
+  // 负责处理当前页面的提交型交互，并在成功后刷新界面状态。
+  // 跟读这个函数时，建议同时留意它依赖了哪些 state/ref，以及执行后会触发哪些界面刷新。
   function openEdit(record) {
     setEditing(record);
     editForm.setFieldsValue({
@@ -64,6 +73,8 @@ export default function AdminSchoolAdminsPage() {
     setEditOpen(true);
   }
 
+  // 负责处理当前页面的提交型交互，并在成功后刷新界面状态。
+  // 跟读这个函数时，建议同时留意它依赖了哪些 state/ref，以及执行后会触发哪些界面刷新。
   async function submitEdit(values) {
     if (!editing?.userId) return;
     setSaving(true);
@@ -80,6 +91,8 @@ export default function AdminSchoolAdminsPage() {
     }
   }
 
+  // 负责切换界面状态或执行带副作用的收尾动作。
+  // 跟读这个函数时，建议同时留意它依赖了哪些 state/ref，以及执行后会触发哪些界面刷新。
   async function toggleEnabled(record, nextEnabled) {
     try {
       await api.post(`/admin/school-admins/${record.userId}/toggle-enabled`, { enabled: nextEnabled });
@@ -90,6 +103,8 @@ export default function AdminSchoolAdminsPage() {
     }
   }
 
+  // 负责处理当前页面的提交型交互，并在成功后刷新界面状态。
+  // 跟读这个函数时，建议同时留意它依赖了哪些 state/ref，以及执行后会触发哪些界面刷新。
   async function resetPassword(record) {
     try {
       const r = await api.post(`/admin/school-admins/${record.userId}/reset-password`);

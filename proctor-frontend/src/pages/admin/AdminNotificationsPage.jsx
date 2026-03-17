@@ -1,3 +1,4 @@
+// AdminNotificationsPage 用于维护平台通知模板和通知记录。
 import { useEffect, useState } from "react";
 import { api } from "../../apiClient";
 import { Button, Card, Col, Input, Row, Space, Switch, Typography, message } from "antd";
@@ -13,6 +14,8 @@ const previewVars = {
   content: "考试安排已更新，请及时登录平台查看。",
 };
 
+// 负责把页面中的一段独立交互逻辑拆出来，避免主组件渲染区混入过多细节。
+// 跟读这个函数时，建议同时留意它依赖了哪些 state/ref，以及执行后会触发哪些界面刷新。
 function renderPreview(template) {
   let result = template || "";
   Object.entries(previewVars).forEach(([key, value]) => {
@@ -27,10 +30,14 @@ export default function AdminNotificationsPage() {
   const [loading, setLoading] = useState(false);
   const [savingCode, setSavingCode] = useState("");
 
+  // 这个 effect 负责在依赖变化时同步加载数据或建立/释放副作用。
+  // 阅读时可以重点看依赖数组、内部异步流程以及 return 清理逻辑三部分。
   useEffect(() => {
     load();
   }, []);
 
+  // 负责读取当前页面所需的数据，并把结果同步到 state 中。
+  // 跟读这个函数时，建议同时留意它依赖了哪些 state/ref，以及执行后会触发哪些界面刷新。
   async function load() {
     setLoading(true);
     try {
@@ -43,12 +50,16 @@ export default function AdminNotificationsPage() {
     }
   }
 
+  // 负责把某个对象加载到当前页面上下文中，并更新相关显示状态。
+  // 跟读这个函数时，建议同时留意它依赖了哪些 state/ref，以及执行后会触发哪些界面刷新。
   function updateLocal(templateCode, patch) {
     setItems((prev) => prev.map((item) => (
       item.templateCode === templateCode ? { ...item, ...patch } : item
     )));
   }
 
+  // 负责处理当前页面的提交型交互，并在成功后刷新界面状态。
+  // 跟读这个函数时，建议同时留意它依赖了哪些 state/ref，以及执行后会触发哪些界面刷新。
   async function save(item) {
     setSavingCode(item.templateCode);
     try {

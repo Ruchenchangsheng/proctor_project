@@ -9,6 +9,9 @@ import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
 
 import java.util.Arrays;
 import java.util.List;
+/**
+ * CorsConfig 集中配置后端的基础设施行为。
+ */
 
 @Configuration
 public class CorsConfig {

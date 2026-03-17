@@ -1,3 +1,4 @@
+// useCatalogTranslation 封装面向业务文案目录的翻译钩子，减少页面里重复的键名处理。
 import { useCallback } from "react";
 import { useTranslation } from "react-i18next";
 import { normalizeLanguage, toIntlLocale, translateSourceText } from "./catalog";

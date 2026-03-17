@@ -1,3 +1,4 @@
+// App 负责组装整套前端路由树，并根据登录态和角色把用户导向管理员、学校管理员、教师或学生端页面。
 import { Routes, Route, Navigate, useLocation } from "react-router-dom";
 import { useAuthStore } from "./store/auth";
 import { useEffect, useState } from "react";
@@ -49,6 +50,8 @@ import StudentExamVerify from "./pages/student/StudentExamVerify.jsx";
 
 const { Title, Text } = Typography;
 
+// 负责把页面中的一段独立交互逻辑拆出来，避免主组件渲染区混入过多细节。
+// 跟读这个函数时，建议同时留意它依赖了哪些 state/ref，以及执行后会触发哪些界面刷新。
 function Guard({ children, allow }) {
   const { t } = useTranslation();
   const token = useAuthStore((s) => s.token);
@@ -58,7 +61,10 @@ function Guard({ children, allow }) {
   const bootstrapAfterLogin = useAuthStore((s) => s.bootstrapAfterLogin);
   const [loadingMe, setLoadingMe] = useState(false);
 
+  // 这个 effect 负责在依赖变化时同步加载数据或建立/释放副作用。
+  // 阅读时可以重点看依赖数组、内部异步流程以及 return 清理逻辑三部分。
   useEffect(() => {
+    // 令牌恢复后立即拉取 /api/me，避免刷新页面后角色上下文丢失。
     if (!token || me) return;
     setLoadingMe(true);
     bootstrapAfterLogin().catch(() => {
@@ -115,6 +121,7 @@ export default function App() {
       <Routes>
         <Route path="/login" element={<Login />} />
 
+        {/* 管理员端主要处理平台级资源：学校、用户、考试和系统设置。 */}
         <Route path="/admin" element={<Guard allow={["ADMIN"]}><AdminLayout /></Guard>}>
           <Route index element={<Navigate to="school-overview" replace />} />
           <Route path="school-overview" element={<AdminSchoolOverviewPage />} />
@@ -166,7 +173,7 @@ export default function App() {
         </Route>
         <Route path="/teacher/monitor/:examRoomId" element={<Guard allow={["TEACHER"]}><TeacherMonitor /></Guard>} />
 
-        {/* 学生端：无顶部导航的三页流转 */}
+        {/* 学生端围绕“首页 -> 考前核验 -> 正式考试”三段式流程组织。 */}
         <Route path="/student" element={<Guard allow={["STUDENT"]}><StudentLayout /></Guard>}>
           <Route index element={<Navigate to="home" replace />} />
           <Route path="home" element={<StudentHome />} />

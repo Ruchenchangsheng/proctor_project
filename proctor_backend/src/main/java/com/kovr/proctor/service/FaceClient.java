@@ -21,6 +21,9 @@ import org.springframework.web.client.RestTemplate;
 
 import java.security.MessageDigest;
 import java.util.*;
+/**
+ * FaceClient 负责调用人脸识别服务，提取特征向量并执行远端核验。
+ */
 
 @Service
 @RequiredArgsConstructor
@@ -32,6 +35,10 @@ public class FaceClient {
     @Value("${face.base:}")
     String base;
 
+    /**
+     * 封装当前类中的一段独立业务步骤，减少调用方直接处理过多细节。
+     * 阅读这个方法时，可以重点关注它读取了哪些输入、修改了哪些状态，以及异常或边界条件如何处理。
+     */
     private static String sha256(byte[] b) throws Exception {
         var md = MessageDigest.getInstance("SHA-256");
         var d = md.digest(b);
@@ -40,6 +47,10 @@ public class FaceClient {
         return sb.toString();
     }
 
+    /**
+     * 把输入值转换成当前模块更容易继续处理的标准格式。
+     * 阅读这个方法时，可以重点关注它读取了哪些输入、修改了哪些状态，以及异常或边界条件如何处理。
+     */
     private static double asDouble(Object o, double defVal) {
         if (o == null) return defVal;
         if (o instanceof Number n) return n.doubleValue();
@@ -51,6 +62,10 @@ public class FaceClient {
     }
 
 
+    /**
+     * 创建并组装当前业务对象或执行一段创建型流程。
+     * 阅读这个方法时，可以重点关注它读取了哪些输入、修改了哪些状态，以及异常或边界条件如何处理。
+     */
     private RestTemplate createRestTemplate() {
         SimpleClientHttpRequestFactory f = new SimpleClientHttpRequestFactory();
         f.setConnectTimeout(5000);
@@ -58,6 +73,10 @@ public class FaceClient {
         return new RestTemplate(f);
     }
 
+    /**
+     * 封装当前类中的一段独立业务步骤，减少调用方直接处理过多细节。
+     * 阅读这个方法时，可以重点关注它读取了哪些输入、修改了哪些状态，以及异常或边界条件如何处理。
+     */
     private MediaType safeMediaType(String mime) {
         try {
             return (mime == null || mime.isBlank()) ? MediaType.APPLICATION_OCTET_STREAM : MediaType.parseMediaType(mime);
@@ -66,6 +85,10 @@ public class FaceClient {
         }
     }
 
+    /**
+     * 封装当前类中的一段独立业务步骤，减少调用方直接处理过多细节。
+     * 阅读这个方法时，可以重点关注它读取了哪些输入、修改了哪些状态，以及异常或边界条件如何处理。
+     */
     @SuppressWarnings("unchecked")
     public FaceInfo extract(String mime, byte[] bytes) {
         try {
@@ -76,6 +99,10 @@ public class FaceClient {
             }
 
             var fileRes = new ByteArrayResource(bytes) {
+                /**
+                 * 读取或查询当前业务场景下需要的数据。
+                 * 阅读这个方法时，可以重点关注它读取了哪些输入、修改了哪些状态，以及异常或边界条件如何处理。
+                 */
                 @Override
                 public String getFilename() { return "photo.jpg"; }
             };
@@ -100,6 +127,7 @@ public class FaceClient {
                 throw new BusinessException("FACE_EXTRACT_FAILED", "人脸服务提取失败: " + msg);
             }
 
+            // 这里把 Python 服务的返回做了一层兼容，避免字段名微调就影响主流程。
             // 兼容字段：
             // - det_score(优先) / det(兼容)
             // - dim(优先) / 根据 embedding 自动推断
@@ -120,6 +148,7 @@ public class FaceClient {
         } catch (BusinessException be) {
             throw be;
         } catch (RestClientResponseException rce) {
+            // 人脸服务返回了明确的 HTTP 错误，通常说明服务在线但请求内容不合法或内部处理失败。
             log.warn("调用人脸服务失败: status={}, body={}", rce.getStatusCode(), rce.getResponseBodyAsString());
             throw new BusinessException("FACE_SERVICE_UNAVAILABLE", "人脸服务调用失败");
         } catch (ResourceAccessException rae) {

@@ -1,3 +1,4 @@
+// AdminLayout 负责平台管理员端的整体布局、导航和路由出口。
 import { Outlet, useLocation, useNavigate } from "react-router-dom";
 import { Button, Card, Typography } from "antd";
 import { useAuthStore } from "../../../store/auth";
@@ -46,6 +47,8 @@ export default function AdminLayout() {
   const logout = useAuthStore((s) => s.logout);
   const { tr } = useCatalogTranslation();
 
+  // 负责把页面中的一段独立交互逻辑拆出来，避免主组件渲染区混入过多细节。
+  // 跟读这个函数时，建议同时留意它依赖了哪些 state/ref，以及执行后会触发哪些界面刷新。
   function onLogout() {
     logout();
     navigate("/login", { replace: true });

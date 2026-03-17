@@ -10,6 +10,9 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
+/**
+ * AnomalyEventService 负责把模型逐帧输出聚合为进入、退出和持续时长明确的异常事件。
+ */
 
 @Service
 public class AnomalyEventService {
@@ -24,6 +27,7 @@ public class AnomalyEventService {
         List<Map<String, Object>> list = roomEvents.computeIfAbsent(roomId, k -> new ArrayList<>());
         synchronized (list) {
             for (Map<String, Object> e : events) {
+                // Python 服务会发 enter/exit 事件，这里把它们配对成“持续了多久”的异常区间。
                 String type = String.valueOf(e.getOrDefault("type", ""));
                 String label = String.valueOf(e.getOrDefault("label", "unknown"));
                 long ts = toLong(e.get("ts_ms"), System.currentTimeMillis());
@@ -67,6 +71,7 @@ public class AnomalyEventService {
             if (!k.startsWith(roomId + ":")) return;
             String[] arr = k.split(":", 3);
             if (arr.length < 3) return;
+            // activeStates 只表示“当前还在发生”的异常，供教师端右侧状态面板实时展示。
             Map<String, Object> m = new LinkedHashMap<>();
             m.put("studentId", Long.parseLong(arr[1]));
             m.put("label", arr[2]);

@@ -1,3 +1,4 @@
+// I18nAppProvider 负责在应用根部注入国际化上下文，让页面可以直接读取翻译能力。
 import { useEffect, useState } from "react";
 import { ConfigProvider } from "antd";
 import enUS from "antd/locale/en_US";
@@ -35,12 +36,16 @@ const theme = {
 export default function I18nAppProvider({ children }) {
   const [language, setLanguage] = useState(normalizeLanguage(i18n.language));
 
+  // 这个 effect 负责在依赖变化时同步加载数据或建立/释放副作用。
+  // 阅读时可以重点看依赖数组、内部异步流程以及 return 清理逻辑三部分。
   useEffect(() => {
     const handleChange = (nextLanguage) => setLanguage(normalizeLanguage(nextLanguage));
     i18n.on("languageChanged", handleChange);
     return () => i18n.off("languageChanged", handleChange);
   }, []);
 
+  // 这个 effect 负责在依赖变化时同步加载数据或建立/释放副作用。
+  // 阅读时可以重点看依赖数组、内部异步流程以及 return 清理逻辑三部分。
   useEffect(() => {
     if (typeof document === "undefined") return;
     document.documentElement.lang = language;

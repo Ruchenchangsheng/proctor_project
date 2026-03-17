@@ -1,3 +1,4 @@
+/* student 维护一组可复用的样式片段，供页面统一调用。 */
 .student-container {
   padding: 16px 0;
   width: 100%;

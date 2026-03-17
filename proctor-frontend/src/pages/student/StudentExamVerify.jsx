@@ -1,3 +1,4 @@
+// StudentExamVerify 页面负责考试前的设备检查与身份核验串联，确保学生满足开考条件。
 import { useEffect, useRef, useState } from "react";
 import { api } from "../../apiClient";
 import { useNavigate, useParams } from "react-router-dom";
@@ -25,6 +26,7 @@ export default function StudentExamVerify() {
   const [selectedAudioDeviceId, setSelectedAudioDeviceId] = useState();
   const navigate = useNavigate();
 
+  // 核验页只保留一条预览流；切设备或离开页面时都要主动释放硬件资源。
   const stopPreviewStream = () => {
     if (streamRef.current) {
       streamRef.current.getTracks().forEach((track) => track.stop());
@@ -35,6 +37,8 @@ export default function StudentExamVerify() {
     }
   };
 
+  // 负责把页面中的一段独立交互逻辑拆出来，避免主组件渲染区混入过多细节。
+  // 跟读这个函数时，建议同时留意它依赖了哪些 state/ref，以及执行后会触发哪些界面刷新。
   const refreshDeviceChoices = async () => {
     const devices = await navigator.mediaDevices.enumerateDevices();
     const nextVideoDevices = devices.filter((item) => item.kind === "videoinput");
@@ -45,6 +49,7 @@ export default function StudentExamVerify() {
     setSelectedAudioDeviceId((current) => current || nextAudioDevices[0]?.deviceId);
   };
 
+  // 先在考前页把摄像头和麦克风拿到手，避免进入正式考试页后才发现权限或设备不可用。
   const requestVerifyMedia = async (preferSelectedDevices = false) => {
     clearExamMediaReady(sessionId);
     stopPreviewStream();
@@ -107,6 +112,8 @@ export default function StudentExamVerify() {
     }
   };
 
+  // 负责把页面中的一段独立交互逻辑拆出来，避免主组件渲染区混入过多细节。
+  // 跟读这个函数时，建议同时留意它依赖了哪些 state/ref，以及执行后会触发哪些界面刷新。
   const goExam = () => {
     if (sessionId) {
       navigate(`/student/exams/${sessionId}/run`);
@@ -115,6 +122,8 @@ export default function StudentExamVerify() {
     navigate("/student/exam");
   };
 
+  // 这个 effect 负责在依赖变化时同步加载数据或建立/释放副作用。
+  // 阅读时可以重点看依赖数组、内部异步流程以及 return 清理逻辑三部分。
   useEffect(() => {
     (async () => {
       await refreshDeviceChoices().catch(() => {});
@@ -125,7 +134,10 @@ export default function StudentExamVerify() {
     };
   }, []);
 
+  // 这个 effect 负责在依赖变化时同步加载数据或建立/释放副作用。
+  // 阅读时可以重点看依赖数组、内部异步流程以及 return 清理逻辑三部分。
   useEffect(() => {
+    // 验证成功后给用户一个短暂反馈，再自动跳到正式考试页。
     if (status !== "ok") return;
     const timer = window.setTimeout(() => {
       goExam();
@@ -133,6 +145,8 @@ export default function StudentExamVerify() {
     return () => window.clearTimeout(timer);
   }, [status, sessionId]);
 
+  // 负责把页面中的一段独立交互逻辑拆出来，避免主组件渲染区混入过多细节。
+  // 跟读这个函数时，建议同时留意它依赖了哪些 state/ref，以及执行后会触发哪些界面刷新。
   async function doVerify() {
     if (!videoRef.current) return;
     if (!mediaReady) {
@@ -141,6 +155,7 @@ export default function StudentExamVerify() {
     }
     setStatus("running");
     try {
+      // 这里抓取当前预览画面的一帧交给后端做人脸 1:1 比对。
       const video = videoRef.current;
       const canvas = document.createElement("canvas");
       canvas.width = video.videoWidth; canvas.height = video.videoHeight;
@@ -163,7 +178,7 @@ export default function StudentExamVerify() {
   }
 
   return (
-    <Card className="glass-effect" style={{ maxWidth: 800, margin: "40px auto", borderRadius: 16 }}>
+    <Card className="glass-effect app-student-verify">
       {status === "ok" ? (
         <Result
           status="success"

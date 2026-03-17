@@ -1,3 +1,4 @@
+// modalStyles 负责学校管理员端对应业务页面的展示与交互。
 export const opaqueWhiteModalStyles = {
   content: {
     background: "#ffffff",

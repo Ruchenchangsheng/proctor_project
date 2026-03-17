@@ -1,3 +1,4 @@
+// TeacherEvidenceStudentDetailPage 展示某位学生的异常证据详情，支持查看时间点、媒体和审核状态。
 import { useEffect, useMemo, useState } from "react";
 import { useLocation, useNavigate, useParams } from "react-router-dom";
 import { api } from "../../apiClient";
@@ -7,6 +8,8 @@ import useCatalogTranslation from "../../i18n/useCatalogTranslation";
 
 const { Title, Text } = Typography;
 
+// 负责把输入数据整理成当前页面更容易消费的格式。
+// 跟读这个函数时，建议同时留意它依赖了哪些 state/ref，以及执行后会触发哪些界面刷新。
 function formatTs(ts, locale) {
   if (ts === null || ts === undefined || ts === "") return "-";
   const d = new Date(Number(ts) || ts);
@@ -14,6 +17,8 @@ function formatTs(ts, locale) {
   return d.toLocaleString(locale, { hour12: false });
 }
 
+// 负责把页面中的一段独立交互逻辑拆出来，避免主组件渲染区混入过多细节。
+// 跟读这个函数时，建议同时留意它依赖了哪些 state/ref，以及执行后会触发哪些界面刷新。
 function reviewTag(value, tr) {
   switch (value) {
     case "CONFIRMED_CHEATING":
@@ -44,10 +49,14 @@ export default function TeacherEvidenceStudentDetailPage() {
     { value: "CONFIRMED_CHEATING", label: tr("确认作弊") },
   ];
 
+  // 这个 effect 负责在依赖变化时同步加载数据或建立/释放副作用。
+  // 阅读时可以重点看依赖数组、内部异步流程以及 return 清理逻辑三部分。
   useEffect(() => {
     load();
   }, [examRoomId]);
 
+  // 负责读取当前页面所需的数据，并把结果同步到 state 中。
+  // 跟读这个函数时，建议同时留意它依赖了哪些 state/ref，以及执行后会触发哪些界面刷新。
   async function load() {
     try {
       const r = await api.get(`/evidence/rooms/${examRoomId}`);
@@ -63,6 +72,8 @@ export default function TeacherEvidenceStudentDetailPage() {
     [items, studentId],
   );
 
+  // 负责把某个对象加载到当前页面上下文中，并更新相关显示状态。
+  // 跟读这个函数时，建议同时留意它依赖了哪些 state/ref，以及执行后会触发哪些界面刷新。
   async function openEvidence(item, mode = "preview") {
     const res = await api.get(`/evidence/${item.evidenceId}/media`, {
       responseType: "blob",
@@ -71,6 +82,8 @@ export default function TeacherEvidenceStudentDetailPage() {
     downloadBlob(res.data, `${item.evidenceId}.${item.mediaExt || "mp4"}`, mode === "download");
   }
 
+  // 负责把页面中的一段独立交互逻辑拆出来，避免主组件渲染区混入过多细节。
+  // 跟读这个函数时，建议同时留意它依赖了哪些 state/ref，以及执行后会触发哪些界面刷新。
   async function exportReport(item) {
     try {
       const res = await api.get(`/evidence/${item.evidenceId}/report`, { responseType: "blob" });
@@ -80,6 +93,8 @@ export default function TeacherEvidenceStudentDetailPage() {
     }
   }
 
+  // 负责把页面中的一段独立交互逻辑拆出来，避免主组件渲染区混入过多细节。
+  // 跟读这个函数时，建议同时留意它依赖了哪些 state/ref，以及执行后会触发哪些界面刷新。
   async function exportList() {
     try {
       const res = await api.post("/evidence/export-list", { evidenceIds: list.map((item) => item.evidenceId) }, { responseType: "blob" });
@@ -89,6 +104,8 @@ export default function TeacherEvidenceStudentDetailPage() {
     }
   }
 
+  // 负责把页面中的一段独立交互逻辑拆出来，避免主组件渲染区混入过多细节。
+  // 跟读这个函数时，建议同时留意它依赖了哪些 state/ref，以及执行后会触发哪些界面刷新。
   async function exportZip() {
     try {
       const res = await api.post("/evidence/export-zip", { evidenceIds: list.map((item) => item.evidenceId) }, { responseType: "blob" });
@@ -98,6 +115,8 @@ export default function TeacherEvidenceStudentDetailPage() {
     }
   }
 
+  // 负责驱动一段带外部依赖的流程，例如权限申请、实时通信或轮询检查。
+  // 跟读这个函数时，建议同时留意它依赖了哪些 state/ref，以及执行后会触发哪些界面刷新。
   function startReview(item) {
     setReviewing(item);
     form.setFieldsValue({
@@ -106,6 +125,8 @@ export default function TeacherEvidenceStudentDetailPage() {
     });
   }
 
+  // 负责处理当前页面的提交型交互，并在成功后刷新界面状态。
+  // 跟读这个函数时，建议同时留意它依赖了哪些 state/ref，以及执行后会触发哪些界面刷新。
   async function submitReview(values) {
     if (!reviewing?.evidenceId) return;
     setSaving(true);
@@ -123,7 +144,7 @@ export default function TeacherEvidenceStudentDetailPage() {
   }
 
   return (
-    <Card className="glass-effect" variant="borderless" style={{ borderRadius: 16, height: "100%", overflowY: "auto" }}>
+    <Card className="glass-effect" variant="borderless" style={{ borderRadius: 16 }}>
       <Space direction="vertical" size={8} style={{ width: "100%" }}>
         <Button onClick={() => navigate(-1)} style={{ width: "fit-content" }}>{tr("← 返回学生列表")}</Button>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 12, flexWrap: "wrap" }}>
@@ -196,6 +217,8 @@ export default function TeacherEvidenceStudentDetailPage() {
   );
 }
 
+// 负责把页面中的一段独立交互逻辑拆出来，避免主组件渲染区混入过多细节。
+// 跟读这个函数时，建议同时留意它依赖了哪些 state/ref，以及执行后会触发哪些界面刷新。
 function downloadBlob(blob, fileName, download) {
   const url = URL.createObjectURL(blob);
   if (download) {

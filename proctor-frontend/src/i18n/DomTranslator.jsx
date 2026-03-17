@@ -1,3 +1,4 @@
+// DomTranslator 用于把页面中的静态 DOM 文案接入翻译流程，减少零散文本遗漏。
 import { useEffect } from "react";
 import { useTranslation } from "react-i18next";
 import { useLocation } from "react-router-dom";
@@ -14,6 +15,8 @@ const ATTR_MARKS = {
 const TRANSLATABLE_ATTRIBUTES = Object.keys(ATTR_MARKS);
 const SKIP_TAGS = new Set(["SCRIPT", "STYLE", "NOSCRIPT"]);
 
+// 负责把页面中的一段独立交互逻辑拆出来，避免主组件渲染区混入过多细节。
+// 跟读这个函数时，建议同时留意它依赖了哪些 state/ref，以及执行后会触发哪些界面刷新。
 function preserveWhitespace(text, language) {
   const source = String(text ?? "");
   const match = source.match(/^(\s*)([\s\S]*?)(\s*)$/);
@@ -21,12 +24,16 @@ function preserveWhitespace(text, language) {
   return `${match[1]}${translateSourceText(match[2], language)}${match[3]}`;
 }
 
+// 负责把页面中的一段独立交互逻辑拆出来，避免主组件渲染区混入过多细节。
+// 跟读这个函数时，建议同时留意它依赖了哪些 state/ref，以及执行后会触发哪些界面刷新。
 function shouldSkip(parentElement) {
   if (!parentElement) return true;
   if (SKIP_TAGS.has(parentElement.tagName)) return true;
   return Boolean(parentElement.closest("[data-i18n-skip='true']"));
 }
 
+// 负责把页面中的一段独立交互逻辑拆出来，避免主组件渲染区混入过多细节。
+// 跟读这个函数时，建议同时留意它依赖了哪些 state/ref，以及执行后会触发哪些界面刷新。
 function translateTextNode(node, language) {
   const parentElement = node.parentElement;
   if (shouldSkip(parentElement)) return;
@@ -43,6 +50,8 @@ function translateTextNode(node, language) {
   }
 }
 
+// 负责把页面中的一段独立交互逻辑拆出来，避免主组件渲染区混入过多细节。
+// 跟读这个函数时，建议同时留意它依赖了哪些 state/ref，以及执行后会触发哪些界面刷新。
 function translateAttributes(element, language) {
   if (!element || element.nodeType !== Node.ELEMENT_NODE) return;
   if (element.closest?.("[data-i18n-skip='true']")) return;
@@ -64,6 +73,8 @@ function translateAttributes(element, language) {
   });
 }
 
+// 负责把页面中的一段独立交互逻辑拆出来，避免主组件渲染区混入过多细节。
+// 跟读这个函数时，建议同时留意它依赖了哪些 state/ref，以及执行后会触发哪些界面刷新。
 function translateSubtree(rootNode, language) {
   if (!rootNode || typeof document === "undefined") return;
   const root = rootNode.nodeType === Node.TEXT_NODE ? rootNode.parentNode : rootNode;
@@ -89,8 +100,12 @@ export default function DomTranslator() {
   const { i18n } = useTranslation();
   const location = useLocation();
 
+  // 这个 effect 负责在依赖变化时同步加载数据或建立/释放副作用。
+  // 阅读时可以重点看依赖数组、内部异步流程以及 return 清理逻辑三部分。
   useEffect(() => {
     let frameId = 0;
+    // 负责驱动一段带外部依赖的流程，例如权限申请、实时通信或轮询检查。
+    // 跟读这个函数时，建议同时留意它依赖了哪些 state/ref，以及执行后会触发哪些界面刷新。
     const schedule = (root = document.body) => {
       if (frameId) window.cancelAnimationFrame(frameId);
       frameId = window.requestAnimationFrame(() => {

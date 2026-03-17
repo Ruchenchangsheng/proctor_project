@@ -1,3 +1,4 @@
+// LanguageSwitcher 提供中英文切换入口，让页面可以按当前语言刷新文案。
 import { GlobalOutlined } from "@ant-design/icons";
 import { Select } from "antd";
 import { useTranslation } from "react-i18next";

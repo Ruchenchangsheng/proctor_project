@@ -1,3 +1,4 @@
+// SchoolCreateExamPage 负责学校管理员创建考试、配置考场与时间等核心参数。
 import { useEffect, useState } from "react";
 import { useOutletContext } from "react-router-dom";
 import { Button, Card, Divider, Form, Input, InputNumber, Select, Space, Tag, Typography, Upload, message } from "antd";
@@ -18,6 +19,8 @@ export default function SchoolCreateExamPage() {
   const [examForm] = Form.useForm();
   const departmentIdVal = Form.useWatch("departmentId", examForm);
 
+  // 这个 effect 负责在依赖变化时同步加载数据或建立/释放副作用。
+  // 阅读时可以重点看依赖数组、内部异步流程以及 return 清理逻辑三部分。
   useEffect(() => {
     if (!school?.id) return;
     (async () => {
@@ -42,6 +45,8 @@ export default function SchoolCreateExamPage() {
     })();
   }, [school?.id, tr]);
 
+  // 负责读取当前页面所需的数据，并把结果同步到 state 中。
+  // 跟读这个函数时，建议同时留意它依赖了哪些 state/ref，以及执行后会触发哪些界面刷新。
   async function loadMajors(departmentId) {
     if (!departmentId) return;
     try {
@@ -56,6 +61,8 @@ export default function SchoolCreateExamPage() {
     }
   }
 
+  // 负责把页面中的一段独立交互逻辑拆出来，避免主组件渲染区混入过多细节。
+  // 跟读这个函数时，建议同时留意它依赖了哪些 state/ref，以及执行后会触发哪些界面刷新。
   async function onSubmitExam(values) {
     if (!values.departmentId || !values.majorId) {
       message.error(tr("请先选择学院和专业"));
@@ -88,6 +95,8 @@ export default function SchoolCreateExamPage() {
     }
   }
 
+  // 负责处理当前页面的提交型交互，并在成功后刷新界面状态。
+  // 跟读这个函数时，建议同时留意它依赖了哪些 state/ref，以及执行后会触发哪些界面刷新。
   async function importRoster(file) {
     try {
       const text = await file.text();
@@ -140,7 +149,7 @@ export default function SchoolCreateExamPage() {
             <Form.Item name="startAt" label={tr("开始时间")} rules={[{ required: true, message: tr("请选择开始时间") }]}>
               <Input key={`create-start-${language}`} type="datetime-local" lang={language} style={{ width: 220 }} />
             </Form.Item>
-          <Form.Item name="endAt" label={tr("结束时间")} rules={[{ required: true, message: tr("请选择结束时间") }]}>
+            <Form.Item name="endAt" label={tr("结束时间")} rules={[{ required: true, message: tr("请选择结束时间") }]}>
               <Input key={`create-end-${language}`} type="datetime-local" lang={language} style={{ width: 220 }} />
             </Form.Item>
           </div>
@@ -160,7 +169,8 @@ export default function SchoolCreateExamPage() {
               {tr("CSV 第一列为学生邮箱。未导入名单时，默认按学院+专业全量安排考生。")}
             </Text>
           </div>
-          <Divider dashed style={{ margin: "12px 0" }} />
+
+          {/* <Divider dashed style={{ margin: "12px 0" }} />
           <Space align="start" size="large" wrap>
             <Form.Item name="invigilatorScreenWidth" label={tr("监考屏幕宽(px)")}>
               <InputNumber min={1} style={{ width: 140 }} />
@@ -177,7 +187,8 @@ export default function SchoolCreateExamPage() {
             <Form.Item name="hardCapPerRoom" label={tr("单房间硬上限(选填)")}>
               <InputNumber min={1} style={{ width: 140 }} placeholder={tr("无限制")} />
             </Form.Item>
-          </Space>
+          </Space> */}
+
           <div style={{ marginTop: 8 }}>
             <Button
               type="primary"

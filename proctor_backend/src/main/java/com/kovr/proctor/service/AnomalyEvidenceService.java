@@ -47,6 +47,9 @@ import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.TimeUnit;
+/**
+ * AnomalyEvidenceService 负责缓存监考帧、保存视频分片，并把异常事件整理成可追溯证据。
+ */
 
 @Service
 @RequiredArgsConstructor
@@ -100,6 +103,7 @@ public class AnomalyEvidenceService {
 
     @PostConstruct
     void startClipWorker() {
+        // 证据生成放到后台线程中做，避免学生上传帧时被视频拼接或文件落盘拖慢。
         clipWorkerRunning = true;
         clipWorkerThread = new Thread(this::runClipWorker, "anomaly-clip-worker");
         clipWorkerThread.setDaemon(true);
@@ -121,6 +125,7 @@ public class AnomalyEvidenceService {
         String key = roomId + ":" + studentId;
         Deque<FrameSnapshot> deque = frameBuffers.computeIfAbsent(key, k -> new ArrayDeque<>());
         synchronized (deque) {
+            // 内存里只保留一个滑动窗口，够截出异常前后文即可，避免长期堆积原始图片。
             deque.addLast(new FrameSnapshot(tsMs, mime, bytes));
             while (deque.size() > frameBufferSize) {
                 deque.removeFirst();
@@ -136,28 +141,39 @@ public class AnomalyEvidenceService {
                                  byte[] bytes,
                                  long startTsMs,
                                  long endTsMs) {
+        // 这个方法处理的是学生端 MediaRecorder 每秒上传的一小段视频。
+        // 这些分片不会立刻拼成证据，而是先分别进入“磁盘长期存储”和“内存短期窗口”两条路径：
+        // 1. 磁盘分片用于考试结束后按时间窗精确回放；
+        // 2. 内存缓冲用于刚发生异常、数据库查询还没完全追上时的兜底拼接。
         if (roomId == null || studentId == null || bytes == null || bytes.length == 0) {
+            // 房间、学生或分片内容缺失时，这段数据无法再与任何考试上下文关联，直接忽略。
             return;
         }
         String key = roomId + ":" + studentId;
+        // 前端上传的结束时间理论上应晚于开始时间；这里做一次兜底，避免时钟抖动导致负区间。
         long normalizedEnd = Math.max(endTsMs, startTsMs);
         StoragePathSpec storagePath = resolveStoragePath(studentId, sessionId, schoolId, null, null);
         Path recordDir = storagePath.recordingDir();
         try {
+            // 视频分片先原样落盘，后面证据线程再按异常时间窗挑选并拼接成完整片段。
             Files.createDirectories(recordDir);
+            // segmentId 是数据库与磁盘文件之间的稳定关联键，后面异常证据会通过它回溯原始分片。
             String segmentId = UUID.randomUUID().toString().replace("-", "");
+            // 文件名直接带上起止时间，方便离线排查时只看目录也能知道这段视频覆盖了哪个时间窗。
             String fileName = String.format(Locale.ROOT, "%d_%d_%s.webm", startTsMs, normalizedEnd, segmentId);
             Path chunkPath = recordDir.resolve(fileName);
             Files.write(chunkPath, bytes);
 
             Deque<VideoChunkSnapshot> deque = videoChunkBuffers.computeIfAbsent(key, k -> new ArrayDeque<>());
             synchronized (deque) {
+                // 内存窗口只缓存最近一批分片；真正长期可追溯的数据已经落盘，不需要无限保留在内存里。
                 deque.addLast(new VideoChunkSnapshot(segmentId, startTsMs, normalizedEnd, mime, chunkPath.toAbsolutePath().toString()));
                 while (deque.size() > frameBufferSize * 4L) {
                     deque.removeFirst();
                 }
             }
 
+            // 数据库侧只保存分片元信息，不直接保存大块二进制内容；这样后面按时间窗查询会更轻量。
             RecordingSegmentEntity entity = new RecordingSegmentEntity();
             entity.setSegmentId(segmentId);
             entity.setSessionId(sessionId);
@@ -170,6 +186,7 @@ public class AnomalyEvidenceService {
             entity.setMediaType(mime == null ? "video/webm" : mime);
             recordingSegmentMapper.insert(entity);
         } catch (Exception ex) {
+            // 分片落库失败不会中断考试主流程；学生仍可继续考试，只是这段证据可能丢失。
             log.warn("Failed to persist video chunk: roomId={}, studentId={}, err={}", roomId, studentId, ex.toString());
         }
     }
@@ -182,26 +199,35 @@ public class AnomalyEvidenceService {
             String studentName,
             String invigilatorName,
             Long schoolId) {
+        // 这个方法只负责“把异常事件转换成待处理任务”，并不在这里直接生成媒体文件。
+        // 这样做有两个好处：
+        // 1. 学生逐帧上传接口可以尽快返回，不会被视频拼接拖慢；
+        // 2. 证据生成可以等到考试结束、上下文更完整时再统一处理。
         if (events == null || events.isEmpty()) {
             return List.of();
         }
         List<Map<String, Object>> out = new ArrayList<>();
         for (Map<String, Object> event : events) {
+            // 这里先只入“待生成任务”，真正的媒体文件稍后由后台 worker 拼装并回填 evidenceId。
+            // 下面这些字段基本都来自 Python 服务返回的 enter / exit 事件，后端在这里做一次标准化。
             String severity = String.valueOf(event.getOrDefault("severity", "WARNING"));
             String label = String.valueOf(event.getOrDefault("label", "unknown"));
             long eventTs = toLong(event.get("ts_ms"), System.currentTimeMillis());
             long eventStartTs = toLong(event.get("start_ts_ms"), eventTs);
             long eventEndTs = toLong(event.get("end_ts_ms"), eventTs);
             if (eventEndTs < eventStartTs) {
+                // 极端情况下时间顺序可能颠倒，统一修正后才能让后面的时间窗查询保持正确。
                 long tmp = eventStartTs;
                 eventStartTs = eventEndTs;
                 eventEndTs = tmp;
             }
+            // taskId 是异步 worker 消费这条任务的唯一键，后续 evidenceId 生成前都先靠它追踪状态。
             String taskId = UUID.randomUUID().toString().replace("-", "");
 
             AnomalyClipTaskEntity task = buildTask(taskId, roomId, studentId, schoolId, session, studentName, invigilatorName, label, severity, eventTs, eventStartTs, eventEndTs);
             try {
                 anomalyClipTaskMapper.insert(task);
+                // 同时写库和入队：写库保证重启后还能扫回，入队保证正常运行时能尽快被 worker 处理。
                 clipTaskQueue.offer(taskId);
                 Map<String, Object> pending = new LinkedHashMap<>();
                 pending.put("clipTaskId", taskId);
@@ -212,6 +238,7 @@ public class AnomalyEvidenceService {
                 pending.put("anomalyLabel", label);
                 out.add(pending);
             } catch (Exception ex) {
+                // 某条异常任务创建失败时不影响同批其他异常，保持“能留多少证据就留多少证据”的策略。
                 log.warn("Failed to enqueue clip task: taskId={}, err={}", taskId, ex.toString());
             }
         }
@@ -270,6 +297,7 @@ public class AnomalyEvidenceService {
     private void runClipWorker() {
         while (clipWorkerRunning) {
             try {
+                // 优先消费新进队列；空闲时再顺带扫数据库里的遗留 PENDING 任务，防止重启丢单。
                 String taskId = clipTaskQueue.poll(2, TimeUnit.SECONDS);
                 if (taskId != null) {
                     processClipTask(taskId);
@@ -289,6 +317,7 @@ public class AnomalyEvidenceService {
     }
 
     private void processClipTask(String taskId) {
+        // worker 每次只处理一条任务：先确认它仍处于 PENDING，再确认视频窗口已经准备完毕。
         AnomalyClipTaskEntity task = anomalyClipTaskMapper.selectByTaskId(taskId);
         if (task == null || !"PENDING".equalsIgnoreCase(task.getStatus())) {
             return;
@@ -297,6 +326,7 @@ public class AnomalyEvidenceService {
             return;
         }
         try {
+            // PROCESSING 状态可以让排障时明确知道任务卡在“等待素材”还是“正在生成证据”。
             task.setStatus("PROCESSING");
             task.setUpdatedAt(LocalDateTime.now());
             anomalyClipTaskMapper.updateById(task);
@@ -304,11 +334,13 @@ public class AnomalyEvidenceService {
             EvidenceRecord record = saveEvidence(task);
             persist(record);
 
+            // 只有媒体文件和 evidence 表记录都成功后，任务才真正算 DONE。
             task.setStatus("DONE");
             task.setEvidenceId(record.evidenceId());
             task.setUpdatedAt(LocalDateTime.now());
             anomalyClipTaskMapper.updateById(task);
         } catch (Exception ex) {
+            // FAILED 状态保留错误信息，后面可以人工排查具体是素材缺失、ffmpeg 失败还是磁盘问题。
             task.setStatus("FAILED");
             task.setErrorMsg(ex.getMessage());
             task.setUpdatedAt(LocalDateTime.now());
@@ -321,10 +353,12 @@ public class AnomalyEvidenceService {
         long now = System.currentTimeMillis();
         long minWait = Math.max(Math.max(0L, paddingAfterMs), Math.max(0L, chunkDurationMs));
         long readyAt = eventTsMs + minWait + Math.max(0L, clipReadyDelayMs);
+        // 证据不能太早生成，否则异常发生后的尾部视频可能还没上传完成。
         if (now < readyAt) {
             return false;
         }
 
+        // 默认等到考试结束后再出证据，能保证前后文完整，也避免边考边大规模拼接视频。
         if (!isSessionCompleted(task.getSessionId())) {
             return false;
         }
@@ -366,6 +400,7 @@ public class AnomalyEvidenceService {
     }
 
     private EvidenceRecord saveEvidence(AnomalyClipTaskEntity task) throws IOException {
+        // 证据生成的核心思路是：围绕异常发生时间，尽量找出“最完整、最容易回放”的那份媒体。
         long eventTsMs = task.getAnomalyTsMs() == null ? System.currentTimeMillis() : task.getAnomalyTsMs();
         long eventStartTsMs = task.getAnomalyStartTsMs() == null ? eventTsMs : task.getAnomalyStartTsMs();
         long eventEndTsMs = task.getAnomalyEndTsMs() == null ? eventTsMs : task.getAnomalyEndTsMs();
@@ -377,6 +412,7 @@ public class AnomalyEvidenceService {
         Long roomId = task.getExamRoomId();
         Long studentId = task.getStudentId();
 
+        // 优先使用视频分片做可回放证据；如果视频不可用，再退回到帧序列生成短视频。
         List<VideoChunkSnapshot> videoChunks = getVideoChunks(roomId, studentId, eventStartTsMs, eventEndTsMs);
         List<FrameSnapshot> snapshots = getFrames(roomId, studentId, eventStartTsMs, eventEndTsMs);
         if (videoChunks.isEmpty() && snapshots.isEmpty()) {
@@ -384,6 +420,7 @@ public class AnomalyEvidenceService {
         }
 
         for (VideoChunkSnapshot chunk : videoChunks) {
+            // 异常证据与原始录制分片建立关联后，后面即使要做导出或回查也能追到原素材。
             saveSegmentLink(task.getTaskId(), chunk.segmentId());
         }
 
@@ -395,6 +432,7 @@ public class AnomalyEvidenceService {
         Path dir = storagePath.evidenceDir();
         Files.createDirectories(dir);
 
+        // buildMedia 会按“整场视频 -> 分片窗口 -> 帧序列转视频”的顺序逐级回退。
         MediaSpec media = buildMedia(task, eventTsMs, eventStartTsMs, eventEndTsMs, videoChunks, snapshots, dir, baseName);
 
         return new EvidenceRecord(
@@ -424,6 +462,7 @@ public class AnomalyEvidenceService {
             return List.of();
         }
         synchronized (deque) {
+            // 帧证据会额外补上异常发生前后的 padding，让审核时能看到上下文而不是单点截图。
             long fromTs = Math.max(0L, eventStartTsMs - Math.max(0L, paddingBeforeMs));
             long toTs = eventEndTsMs + Math.max(0L, paddingAfterMs);
 
@@ -435,6 +474,7 @@ public class AnomalyEvidenceService {
                 }
             }
             if (!windowFrames.isEmpty()) {
+                // 如果窗口内帧过多，只保留最后一批更接近异常发生时刻的帧，避免生成的视频过长。
                 return trimToMaxFrames(windowFrames);
             }
             return List.of();
@@ -444,6 +484,7 @@ public class AnomalyEvidenceService {
     private List<VideoChunkSnapshot> getVideoChunks(Long roomId, Long studentId, long eventStartTsMs, long eventEndTsMs) {
         long fromTs = Math.max(0L, eventStartTsMs - Math.max(0L, paddingBeforeMs));
         long toTs = eventEndTsMs + Math.max(0L, paddingAfterMs);
+        // 先查数据库中的已落盘分片，再和内存缓冲合并，兼容“刚上传完尚未完全刷盘”的情况。
         List<VideoChunkSnapshot> db = recordingSegmentMapper.selectByWindow(roomId, studentId, fromTs, toTs)
                 .stream()
                 .map(s -> new VideoChunkSnapshot(s.getSegmentId(), s.getChunkStartTsMs(), s.getChunkEndTsMs(), s.getMediaType(), s.getFilePath()))
@@ -488,6 +529,7 @@ public class AnomalyEvidenceService {
                                  List<FrameSnapshot> snapshots,
                                  Path dir,
                                  String baseName) throws IOException {
+        // 能直接复用整场考试视频或窗口分片就优先复用；最后才退化为帧序列转视频。
         MediaSpec fromFullVideo = tryBuildFromFullSessionVideo(task, eventTsMs, eventStartTsMs, eventEndTsMs, dir, baseName);
         if (fromFullVideo != null) {
             return fromFullVideo;
@@ -496,6 +538,7 @@ public class AnomalyEvidenceService {
         if (fromChunkWindow != null) {
             return fromChunkWindow;
         }
+        // 走到这里说明没有可直接复用的视频，只能用内存里截到的图片帧重新编码出一段短视频。
         String normalized = videoFormat == null ? "mp4" : videoFormat.trim().toLowerCase(Locale.ROOT);
         if (normalized.isEmpty() || "gif".equals(normalized)) {
             normalized = "mp4";

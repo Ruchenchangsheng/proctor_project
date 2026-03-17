@@ -1,3 +1,4 @@
+// AdminSchoolOverviewPage 汇总学校、考试和用户等平台级统计信息。
 import { useEffect, useMemo, useState } from "react";
 import { api } from "../../apiClient";
 import { Card, Col, List, Row, Statistic, Table, Tag, Typography, message } from "antd";
@@ -10,10 +11,14 @@ export default function AdminSchoolOverviewPage() {
   const [schools, setSchools] = useState([]);
   const [loading, setLoading] = useState(false);
 
+  // 这个 effect 负责在依赖变化时同步加载数据或建立/释放副作用。
+  // 阅读时可以重点看依赖数组、内部异步流程以及 return 清理逻辑三部分。
   useEffect(() => {
     load();
   }, []);
 
+  // 负责读取当前页面所需的数据，并把结果同步到 state 中。
+  // 跟读这个函数时，建议同时留意它依赖了哪些 state/ref，以及执行后会触发哪些界面刷新。
   async function load() {
     setLoading(true);
     try {

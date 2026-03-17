@@ -2,8 +2,15 @@ package com.kovr.proctor.security;
 
 import java.security.SecureRandom;
 import java.util.Base64;
+/**
+ * BASE64_Create 负责后端安全链路中的一部分认证、授权或令牌处理逻辑。
+ */
 
 public class BASE64_Create {
+    /**
+     * 封装当前类中的一段独立业务步骤，减少调用方直接处理过多细节。
+     * 阅读这个方法时，可以重点关注它读取了哪些输入、修改了哪些状态，以及异常或边界条件如何处理。
+     */
     public static void main(String[] args) {
         int bytes = 32; // 默认 256-bit
         for (int i = 0; i < args.length - 1; i++) {

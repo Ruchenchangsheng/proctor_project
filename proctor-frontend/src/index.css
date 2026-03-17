@@ -1,3 +1,4 @@
+/* index 维护前端页面的全局或局部视觉样式。 */
 * {
   box-sizing: border-box;
 }
@@ -6,6 +7,11 @@
   font-family: system-ui, Avenir, Helvetica, Arial, sans-serif;
   line-height: 1.5;
   font-weight: 400;
+  --app-shell-padding-x: 20px;
+  --app-shell-padding-y: 18px;
+  --app-layout-gap: 12px;
+  --app-sidebar-width-lg: clamp(220px, 16vw, 272px);
+  --app-sidebar-width-md: minmax(200px, 232px);
   --app-list-hover-bg: linear-gradient(90deg, rgba(255, 255, 255, 0.78) 0%, rgba(228, 239, 255, 0.96) 100%);
   --app-list-hover-shadow: inset 3px 0 0 rgba(236, 44, 162, 0.65), 0 6px 18px rgba(88, 129, 196, 0.10);
   --app-nav-group-color: rgba(83, 88, 135, 0.74);
@@ -33,15 +39,14 @@ body,
 #root {
   width: 100%;
   min-height: 100%;
+  overflow-x: hidden;
 }
 
 body {
   margin: 0;
-  display: flex;
-  place-items: center;
+  display: block;
   min-width: 320px;
   min-height: 100vh;
-  /* 添加柔和的渐变背景，这是玻璃风格的基础 */
   background: linear-gradient(135deg, #e0c3fc 0%, #8ec5fc 100%);
   background-attachment: fixed;
 }
@@ -368,12 +373,11 @@ body {
 
 /* 修改外壳容器，应用玻璃效果 */
 .app-shell {
-  width: 97vw;
-  min-height: 96vh;
+  width: min(100%, calc(100vw - 32px));
+  min-height: 100vh;
   margin: 0 auto;
-  padding: 1.2vh 0.8vw;
+  padding: var(--app-shell-padding-y) var(--app-shell-padding-x);
   border-radius: 16px;
-  /* 应用玻璃属性 */
   background: rgba(255, 255, 255, 0.3);
   backdrop-filter: blur(16px);
   -webkit-backdrop-filter: blur(16px);
@@ -383,8 +387,9 @@ body {
 
 .app-dashboard-layout {
   display: grid;
-  gap: 12px;
+  gap: var(--app-layout-gap);
   height: 100%;
+  min-width: 0;
 }
 
 .app-shell-header-row {
@@ -411,8 +416,8 @@ body {
 
 .app-shell-body {
   display: grid;
-  grid-template-columns: minmax(280px, 360px) minmax(0, 1fr);
-  gap: 12px;
+  grid-template-columns: var(--app-sidebar-width-lg) minmax(0, 1fr);
+  gap: var(--app-layout-gap);
   min-height: 0;
 }
 
@@ -487,15 +492,511 @@ body {
   margin-bottom: 12px;
 }
 
-@media (max-width: 1024px) {
+.app-shell > * {
+  width: 100%;
+  min-width: 0;
+}
+
+.app-shell .glass-effect,
+.app-shell .ant-card,
+.app-shell .ant-card-body,
+.app-shell .ant-space,
+.app-shell .ant-space-item,
+.app-shell .ant-form,
+.app-shell .ant-form-item,
+.app-shell .ant-form-item-control,
+.app-shell .ant-form-item-control-input,
+.app-shell .ant-form-item-control-input-content,
+.app-shell .ant-select,
+.app-shell .ant-input-affix-wrapper,
+.app-shell .ant-input-number,
+.app-shell .ant-picker,
+.app-shell .ant-upload,
+.app-shell .ant-table-wrapper,
+.app-shell .ant-table-container {
+  max-width: 100%;
+  min-width: 0;
+}
+
+.app-shell .ant-form-inline {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+
+.app-shell .ant-form-inline .ant-form-item {
+  margin-inline-end: 0;
+  margin-bottom: 0;
+}
+
+.app-shell .ant-space:not(.ant-space-vertical) {
+  max-width: 100%;
+}
+
+.app-shell .ant-card-body > .ant-space.ant-space-horizontal,
+.app-shell .ant-card-body > div > .ant-space.ant-space-horizontal {
+  max-width: 100%;
+}
+
+.app-shell .ant-table-wrapper .ant-table {
+  min-width: max-content;
+}
+
+.app-shell .ant-table-wrapper .ant-table-container {
+  overflow-x: auto;
+  overflow-y: hidden;
+}
+
+.app-shell .ant-table-wrapper,
+.app-shell .ant-table-wrapper .ant-spin-nested-loading,
+.app-shell .ant-table-wrapper .ant-spin-container,
+.app-shell .ant-table-wrapper .ant-table-container,
+.app-shell .ant-table-wrapper .ant-table-content,
+.app-shell .ant-table-wrapper .ant-table-body,
+.app-shell .ant-table-wrapper .ant-table-cell,
+.app-shell .ant-table-wrapper .ant-table-column-title {
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
+}
+
+.app-shell .ant-table-wrapper,
+.app-shell .ant-table-wrapper .ant-spin-nested-loading,
+.app-shell .ant-table-wrapper .ant-spin-container {
+  overflow: hidden;
+}
+
+.app-shell .ant-table-wrapper .ant-table {
+  width: 100%;
+  min-width: 0;
+}
+
+.app-shell .ant-table-wrapper .ant-table-content,
+.app-shell .ant-table-wrapper .ant-table-body {
+  overflow-x: auto !important;
+  overflow-y: hidden !important;
+}
+
+.app-shell .ant-table-wrapper .ant-table-content > table,
+.app-shell .ant-table-wrapper .ant-table-body > table {
+  min-width: 100%;
+}
+
+.app-shell .ant-table-wrapper .ant-table-content > table[style*="width"],
+.app-shell .ant-table-wrapper .ant-table-body > table[style*="width"] {
+  table-layout: fixed !important;
+}
+
+.app-shell .ant-table-wrapper .ant-table-tbody > tr > td,
+.app-shell .ant-table-wrapper .ant-table-thead > tr > th {
+  vertical-align: top;
+  white-space: nowrap;
+  word-break: keep-all;
+  overflow-wrap: normal;
+}
+
+.app-shell .ant-table-wrapper .ant-table-cell {
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.app-shell .ant-table-wrapper .ant-table-pagination {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.app-shell .ant-list,
+.app-shell .ant-list-items,
+.app-shell .ant-list-item,
+.app-shell .ant-list-item-meta,
+.app-shell .ant-list-item-meta-content,
+.app-shell .ant-list-item-meta-title,
+.app-shell .ant-list-item-meta-description,
+.app-shell .ant-list-item-action,
+.app-shell .ant-list-item-action > li,
+.app-shell .ant-list-item-extra {
+  max-width: 100%;
+  min-width: 0;
+}
+
+.app-shell .ant-list-item {
+  display: flex;
+  flex-wrap: nowrap;
+  align-items: flex-start;
+  gap: 10px 12px;
+}
+
+.app-shell .ant-list-item-meta {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.app-shell .ant-list-item-meta-title,
+.app-shell .ant-list-item-meta-description,
+.app-shell .ant-list-item .ant-typography,
+.app-shell .ant-list-item span {
+  overflow-wrap: anywhere;
+}
+
+.app-shell .ant-list-item .ant-space {
+  max-width: 100%;
+}
+
+.app-shell .ant-list-item .ant-space:not(.ant-space-vertical) {
+  row-gap: 8px;
+}
+
+.app-shell .ant-list-item-action {
+  display: flex;
+  flex: 0 0 auto;
+  flex-wrap: wrap;
+  align-items: center;
+  align-self: center;
+  justify-content: flex-end;
+  gap: 8px;
+  width: auto;
+  margin-inline-start: auto;
+  padding-inline-start: 0;
+}
+
+.app-shell .ant-list-item-action > li {
+  padding: 0;
+}
+
+.app-shell .ant-list-item-action > li::after {
+  display: none;
+}
+
+.app-shell .ant-list-item-action > li > * {
+  max-width: 100%;
+}
+
+.app-shell .ant-list-item-extra {
+  width: 100%;
+}
+
+.app-form-grid-2 {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(260px, 1fr));
+  gap: 16px;
+}
+
+.app-auth-page {
+  max-width: 400px;
+  margin: 10vh auto 0;
+  width: 100%;
+  padding: 0 20px;
+}
+
+.app-student-layout {
+  min-height: 100vh;
+  background: transparent;
+}
+
+.app-student-content {
+  padding: 24px;
+  max-width: 1200px;
+  margin: 0 auto;
+  width: 100%;
+}
+
+.app-student-home {
+  display: grid;
+  gap: 16px;
+  width: 100%;
+}
+
+.app-student-home-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 16px;
+  flex-wrap: wrap;
+}
+
+.app-student-home-profile {
+  display: grid;
+  grid-template-columns: 96px minmax(0, 1fr);
+  gap: 18px;
+  align-items: center;
+}
+
+.app-student-home-photo,
+.app-student-home-photo .ant-image,
+.app-student-home-photo .ant-image-img {
+  width: 96px !important;
+  height: 120px !important;
+  border-radius: 12px;
+}
+
+.app-student-home-photo {
+  display: block;
+  overflow: hidden;
+  box-shadow: 0 8px 20px rgba(52, 83, 140, 0.14);
+}
+
+.app-student-home-photo .ant-image-img {
+  object-fit: cover;
+}
+
+.app-student-home-meta {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.app-student-home-meta-item {
+  min-width: 0;
+  padding: 12px 14px;
+  border-radius: 14px;
+  background: rgba(255, 255, 255, 0.44);
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.42);
+}
+
+.app-student-home-meta-label {
+  margin-bottom: 4px;
+  color: rgba(65, 80, 109, 0.78);
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+}
+
+.app-student-home-meta-item .ant-typography {
+  margin: 0;
+  display: block;
+  overflow-wrap: anywhere;
+}
+
+.app-student-home-table-card .ant-card-body {
+  overflow: visible !important;
+}
+
+.app-student-home-table-card .ant-table-wrapper,
+.app-student-home-table-card .ant-spin-nested-loading,
+.app-student-home-table-card .ant-spin-container,
+.app-student-home-table-card .ant-table-container,
+.app-student-home-table-card .ant-table-content,
+.app-student-home-table-card .ant-table-body {
+  overflow-y: hidden !important;
+}
+
+.card {
+  background: #fff;
+  border: 1px solid #e5e7eb;
+  border-radius: 10px;
+  padding: 16px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.03);
+}
+
+.btn-primary {
+  height: 36px;
+  padding: 0 16px;
+  border: none;
+  border-radius: 8px;
+  background: #1677ff;
+  color: #fff;
+  cursor: pointer;
+}
+
+.btn-primary:hover {
+  background: #4096ff;
+}
+
+.btn-primary:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.profile {
+  display: grid;
+  grid-template-columns: 220px 1fr;
+  gap: 16px;
+  align-items: center;
+}
+
+.profile-photo {
+  width: 220px;
+  height: 220px;
+  border-radius: 10px;
+  background: #f5f5f5;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  border: 1px solid #e5e7eb;
+}
+
+.profile-photo img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.verify-page {
+  display: grid;
+  grid-template-columns: 2fr 1fr;
+  gap: 16px;
+}
+
+.verify-left {
+  background: #000;
+  border-radius: 10px;
+  overflow: hidden;
+  min-height: 360px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.verify-video {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.verify-right .verify-tips {
+  color: #595959;
+  padding-left: 18px;
+}
+
+.verify-msg {
+  margin-top: 12px;
+  padding: 10px;
+  border-radius: 8px;
+  background: #f8fafc;
+}
+
+.verify-msg.ok {
+  border: 1px solid #b7eb8f;
+  background: #f6ffed;
+  color: #389e0d;
+}
+
+.verify-msg.fail {
+  border: 1px solid #ffccc7;
+  background: #fff2f0;
+  color: #cf1322;
+}
+
+.verify-msg.running {
+  border: 1px dashed #1677ff;
+}
+
+.verify-right .countdown {
+  margin-top: 6px;
+  font-weight: 600;
+}
+
+.verify-right .meta {
+  margin-top: 8px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  color: #595959;
+}
+
+.app-student-verify {
+  max-width: 800px;
+  margin: 40px auto;
+  border-radius: 16px;
+}
+
+.app-exam-runner {
+  width: 100%;
+  height: calc(94vh - 24px);
+  margin: 0 auto;
+  display: grid;
+  gap: 16px;
+  overflow: hidden;
+}
+
+.app-exam-runner-toolbar {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 12px;
+  margin-bottom: 20px;
+}
+
+.app-monitor-page {
+  width: 100%;
+  height: calc(94vh - 8px);
+  margin: 0 auto;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  overflow: hidden;
+}
+
+.app-monitor-body {
+  display: flex;
+  gap: 12px;
+  min-height: 0;
+  flex: 1;
+  overflow: hidden;
+}
+
+.app-monitor-main {
+  flex: 1 1 0;
+  width: auto;
+  max-width: 100%;
+  min-width: 0;
+  min-height: 0;
+}
+
+.app-monitor-grid {
+  display: grid;
+  gap: 10px;
+  overflow-y: auto;
+  min-height: 0;
+  flex: 1;
+  padding-right: 4px;
+  align-content: start;
+  grid-auto-rows: max-content;
+}
+
+.app-monitor-side {
+  flex: 0 0 clamp(300px, 22vw, 360px);
+  width: auto;
+  max-width: 100%;
+  min-width: 0;
+  min-height: 0;
+}
+
+.app-monitor-card {
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
+}
+
+.app-monitor-card .ant-card-body,
+.app-monitor-card .ant-space,
+.app-monitor-card .ant-space-item {
+  min-width: 0;
+  max-width: 100%;
+}
+
+.app-monitor-side-scroll {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  padding-right: 4px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+@media (min-width: 768px) and (max-width: 1199px) {
   .app-shell {
-    width: 95vw;
-    min-height: 95vh;
-    padding: 1vh 0.5vw;
+    width: 100%;
+    min-height: 100vh;
+    padding: 16px;
   }
 
   .app-shell-body {
-    grid-template-columns: 1fr;
+    grid-template-columns: var(--app-sidebar-width-md) minmax(0, 1fr);
   }
 
   .app-language-switcher:not(.is-compact) {
@@ -506,5 +1007,289 @@ body {
   .app-language-switcher-select,
   .app-language-switcher.is-compact .app-language-switcher-select {
     min-width: 136px;
+  }
+
+  .app-shell .ant-form-inline .ant-form-item {
+    flex: 1 1 calc(50% - 12px);
+    min-width: 220px;
+  }
+
+  .app-monitor-page {
+    height: auto;
+    min-height: calc(100vh - 140px);
+  }
+
+  .app-monitor-body {
+    flex-direction: column;
+    overflow: visible;
+  }
+
+  .app-monitor-main,
+  .app-monitor-side {
+    flex: none;
+    width: 100%;
+    min-width: 0;
+  }
+
+  .app-monitor-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+  }
+
+  .app-exam-runner {
+    height: auto;
+    min-height: calc(100vh - 180px);
+  }
+
+  .verify-page {
+    grid-template-columns: minmax(0, 1.4fr) minmax(260px, 1fr);
+  }
+
+}
+
+@media (max-width: 767px) {
+  .app-shell {
+    width: 100%;
+    min-height: 100vh;
+    padding: 12px;
+    border-radius: 0;
+  }
+
+  .app-dashboard-layout {
+    gap: 12px;
+  }
+
+  .app-shell-body {
+    grid-template-columns: 1fr;
+  }
+
+  .app-side-shell {
+    overflow: visible !important;
+  }
+
+  .app-shell-header-row,
+  .app-shell-header-actions {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .app-shell-header-actions > * {
+    width: 100%;
+  }
+
+  .app-language-switcher,
+  .app-language-switcher.is-compact,
+  .app-language-switcher-select,
+  .app-language-switcher.is-compact .app-language-switcher-select {
+    width: 100%;
+    min-width: 0;
+  }
+
+  .app-side-menu .ant-menu-item,
+  .app-side-menu .ant-menu-submenu-title {
+    padding: 11px 12px !important;
+    border-radius: 14px;
+  }
+
+  .app-side-menu .ant-menu-sub.ant-menu-inline .ant-menu-item {
+    width: 100% !important;
+    max-width: 100% !important;
+    margin-left: 0 !important;
+  }
+
+  .app-shell .ant-card .ant-card-body {
+    padding: 16px;
+  }
+
+  .app-shell .ant-form-inline {
+    flex-direction: column;
+    gap: 10px;
+  }
+
+  .app-shell .ant-form-inline .ant-form-item,
+  .app-shell .ant-space.ant-space-horizontal,
+  .app-shell .ant-space.ant-space-horizontal .ant-space-item {
+    width: 100%;
+  }
+
+  .app-shell .ant-space.ant-space-horizontal {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+  }
+
+  .app-shell .ant-space.ant-space-horizontal .ant-space-item {
+    flex: 1 1 100%;
+    min-width: 0;
+  }
+
+  .app-shell .ant-space.ant-space-horizontal .ant-space-item > * {
+    width: 100%;
+  }
+
+  .app-shell .ant-list-item {
+    flex-wrap: wrap;
+    padding-left: 0 !important;
+    padding-right: 0 !important;
+  }
+
+  .app-shell .ant-list-item-meta {
+    flex-basis: 100%;
+  }
+
+  .app-shell .ant-list-item-action {
+    width: 100%;
+    margin-inline-start: 0;
+    justify-content: stretch;
+  }
+
+  .app-shell .ant-list-item-action > li {
+    flex: 1 1 100%;
+    width: 100%;
+  }
+
+  .app-shell .ant-list-item-action > li > .ant-btn,
+  .app-shell .ant-list-item-action > li > button,
+  .app-shell .ant-list-item-action > li > a {
+    width: 100% !important;
+  }
+
+  .app-shell .ant-input,
+  .app-shell .ant-input-affix-wrapper,
+  .app-shell .ant-select,
+  .app-shell .ant-picker,
+  .app-shell .ant-input-number,
+  .app-shell .ant-input-number-group-wrapper,
+  .app-shell .ant-input-number-affix-wrapper {
+    width: 100% !important;
+  }
+
+  .app-shell .ant-btn {
+    width: 100%;
+  }
+
+  .app-shell .ant-table-wrapper .ant-table-cell {
+    white-space: nowrap;
+  }
+
+  .app-auth-page {
+    max-width: none;
+    margin: 6vh auto 0;
+    padding: 0 12px;
+  }
+
+  .app-login-toolbar {
+    justify-content: stretch;
+  }
+
+  .app-login-toolbar > * {
+    width: 100%;
+  }
+
+  .app-form-grid-2 {
+    grid-template-columns: 1fr;
+  }
+
+  .app-student-content {
+    padding: 16px;
+  }
+
+  .app-student-home-header {
+    align-items: stretch;
+  }
+
+  .app-student-home-header > * {
+    width: 100%;
+  }
+
+  .app-student-home-profile {
+    grid-template-columns: 1fr;
+    justify-items: center;
+  }
+
+  .app-student-home-meta {
+    width: 100%;
+    grid-template-columns: 1fr;
+  }
+
+  .app-student-verify {
+    margin: 20px auto;
+  }
+
+  .app-student-verify .ant-card-body {
+    padding: 18px 14px !important;
+  }
+
+  .app-exam-runner {
+    gap: 12px;
+    height: auto;
+    min-height: calc(100vh - 160px);
+  }
+
+  .app-exam-runner-toolbar {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 12px;
+  }
+
+  .app-exam-runner-toolbar > * {
+    width: 100%;
+  }
+
+  .app-monitor-page {
+    height: auto;
+    min-height: calc(100vh - 120px);
+  }
+
+  .app-monitor-body {
+    flex-direction: column;
+    overflow: visible;
+  }
+
+  .app-monitor-main,
+  .app-monitor-side {
+    flex: none;
+    width: 100%;
+    min-width: 0;
+  }
+
+  .app-monitor-main .ant-card-body,
+  .app-monitor-side .ant-card-body {
+    padding: 14px !important;
+  }
+
+  .app-monitor-grid {
+    grid-template-columns: 1fr !important;
+    padding-right: 0;
+  }
+
+  .verify-page,
+  .profile {
+    grid-template-columns: 1fr;
+  }
+
+  .verify-left {
+    min-height: 220px;
+  }
+
+  .profile-photo {
+    width: min(220px, 100%);
+    height: auto;
+    aspect-ratio: 1 / 1;
+    margin: 0 auto;
+  }
+
+  .ant-modal {
+    width: calc(100vw - 24px) !important;
+    max-width: calc(100vw - 24px) !important;
+    margin: 0 auto;
+  }
+
+  .ant-modal-content {
+    padding: 16px !important;
+  }
+
+  .ant-modal-body {
+    max-height: calc(100vh - 220px);
+    overflow: auto;
   }
 }

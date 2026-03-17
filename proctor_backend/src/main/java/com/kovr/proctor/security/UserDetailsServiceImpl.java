@@ -8,12 +8,19 @@ import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.security.core.userdetails.UserDetailsService;
 import org.springframework.security.core.userdetails.UsernameNotFoundException;
 import org.springframework.stereotype.Service;
+/**
+ * UserDetailsServiceImpl 负责按账号加载用户信息，供 Spring Security 做身份认证。
+ */
 
 @Service
 @RequiredArgsConstructor
 public class UserDetailsServiceImpl implements UserDetailsService {
     private final UserMapper userMapper;
 
+    /**
+     * 读取或查询当前业务场景下需要的数据。
+     * 阅读这个方法时，可以重点关注它读取了哪些输入、修改了哪些状态，以及异常或边界条件如何处理。
+     */
     @Override
     public UserDetails loadUserByUsername(String subject) throws UsernameNotFoundException {
         UserEntity u = null;

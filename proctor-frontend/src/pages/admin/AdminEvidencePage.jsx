@@ -1,3 +1,4 @@
+// AdminEvidencePage 提供全平台视角的异常证据查询与审阅入口。
 import { useEffect, useMemo, useState } from "react";
 import { api } from "../../apiClient";
 import { Button, Card, Input, Select, Space, Table, Tag, Typography, message } from "antd";
@@ -8,6 +9,8 @@ import useCatalogTranslation from "../../i18n/useCatalogTranslation";
 
 const { Title, Text } = Typography;
 
+// 负责把输入数据整理成当前页面更容易消费的格式。
+// 跟读这个函数时，建议同时留意它依赖了哪些 state/ref，以及执行后会触发哪些界面刷新。
 function formatTs(value) {
   const date = new Date(Number(value) || value || Date.now());
   if (Number.isNaN(date.getTime())) return "-";
@@ -23,10 +26,14 @@ export default function AdminEvidencePage() {
   const [keywordInput, setKeywordInput] = useState("");
   const [selectedRowKeys, setSelectedRowKeys] = useState([]);
 
+  // 这个 effect 负责在依赖变化时同步加载数据或建立/释放副作用。
+  // 阅读时可以重点看依赖数组、内部异步流程以及 return 清理逻辑三部分。
   useEffect(() => {
     initialize();
   }, []);
 
+  // 负责读取当前页面所需的数据，并把结果同步到 state 中。
+  // 跟读这个函数时，建议同时留意它依赖了哪些 state/ref，以及执行后会触发哪些界面刷新。
   async function initialize() {
     setLoading(true);
     try {
@@ -67,6 +74,8 @@ export default function AdminEvidencePage() {
       .sort((a, b) => Number(b.anomalyTsMs || 0) - Number(a.anomalyTsMs || 0));
   }, [items, filters]);
 
+  // 负责把某个对象加载到当前页面上下文中，并更新相关显示状态。
+  // 跟读这个函数时，建议同时留意它依赖了哪些 state/ref，以及执行后会触发哪些界面刷新。
   async function openEvidence(item, mode = "preview") {
     const res = await api.get(`/evidence/${item.evidenceId}/media`, {
       responseType: "blob",
@@ -84,6 +93,8 @@ export default function AdminEvidencePage() {
     window.setTimeout(() => URL.revokeObjectURL(url), 30000);
   }
 
+  // 负责把页面中的一段独立交互逻辑拆出来，避免主组件渲染区混入过多细节。
+  // 跟读这个函数时，建议同时留意它依赖了哪些 state/ref，以及执行后会触发哪些界面刷新。
   async function exportSelected(type) {
     if (!selectedRowKeys.length) {
       message.warning("请先勾选证据");

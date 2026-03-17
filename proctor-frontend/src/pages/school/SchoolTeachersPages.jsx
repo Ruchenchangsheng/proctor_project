@@ -1,3 +1,4 @@
+// SchoolTeachersPages 负责学校教师档案的维护、导入和查询。
 import React, { useEffect, useState } from "react";
 import { useOutletContext } from "react-router-dom";
 import { api } from "../../apiClient";
@@ -28,11 +29,15 @@ export default function SchoolTeachersPages({ mode = "list" }) {
   const showAdd = mode === "add";
   const showList = mode === "list";
 
+  // 这个 effect 负责在依赖变化时同步加载数据或建立/释放副作用。
+  // 阅读时可以重点看依赖数组、内部异步流程以及 return 清理逻辑三部分。
   useEffect(() => {
     if (!school?.id) return;
     loadDepartments();
   }, [school?.id]);
 
+  // 负责读取当前页面所需的数据，并把结果同步到 state 中。
+  // 跟读这个函数时，建议同时留意它依赖了哪些 state/ref，以及执行后会触发哪些界面刷新。
   async function loadDepartments() {
     try {
       const d = await api.get(`/school/${school.id}/departments`);
@@ -61,12 +66,16 @@ export default function SchoolTeachersPages({ mode = "list" }) {
     }
   }
 
+  // 负责读取当前页面所需的数据，并把结果同步到 state 中。
+  // 跟读这个函数时，建议同时留意它依赖了哪些 state/ref，以及执行后会触发哪些界面刷新。
   async function fetchMajors(departmentId) {
     if (!departmentId) return [];
     const r = await api.get(`/school/${school.id}/majors`, { params: { departmentId } });
     return r.data || [];
   }
 
+  // 负责读取当前页面所需的数据，并把结果同步到 state 中。
+  // 跟读这个函数时，建议同时留意它依赖了哪些 state/ref，以及执行后会触发哪些界面刷新。
   async function loadList(departmentId = filterDeptId, majorId = filterMajorId, nextKeyword = keyword) {
     setLoading(true);
     try {
@@ -85,12 +94,16 @@ export default function SchoolTeachersPages({ mode = "list" }) {
     }
   }
 
+  // 负责把页面中的一段独立交互逻辑拆出来，避免主组件渲染区混入过多细节。
+  // 跟读这个函数时，建议同时留意它依赖了哪些 state/ref，以及执行后会触发哪些界面刷新。
   async function onCreateDeptChange(value) {
     const majors = await fetchMajors(value);
     setCreateMajors(majors);
     form.setFieldsValue({ majorId: majors[0]?.id || null });
   }
 
+  // 负责把页面中的一段独立交互逻辑拆出来，避免主组件渲染区混入过多细节。
+  // 跟读这个函数时，建议同时留意它依赖了哪些 state/ref，以及执行后会触发哪些界面刷新。
   async function onFilterDeptChange(value) {
     setFilterDeptId(value);
     const majors = await fetchMajors(value);
@@ -100,11 +113,15 @@ export default function SchoolTeachersPages({ mode = "list" }) {
     await loadList(value, firstMajorId, keyword);
   }
 
+  // 负责把页面中的一段独立交互逻辑拆出来，避免主组件渲染区混入过多细节。
+  // 跟读这个函数时，建议同时留意它依赖了哪些 state/ref，以及执行后会触发哪些界面刷新。
   async function onFilterMajorChange(value) {
     setFilterMajorId(value);
     await loadList(filterDeptId, value, keyword);
   }
 
+  // 负责处理当前页面的提交型交互，并在成功后刷新界面状态。
+  // 跟读这个函数时，建议同时留意它依赖了哪些 state/ref，以及执行后会触发哪些界面刷新。
   async function onFinish(values) {
     const payload = {
       name: values.name?.trim(),
@@ -125,6 +142,8 @@ export default function SchoolTeachersPages({ mode = "list" }) {
     }
   }
 
+  // 负责处理当前页面的提交型交互，并在成功后刷新界面状态。
+  // 跟读这个函数时，建议同时留意它依赖了哪些 state/ref，以及执行后会触发哪些界面刷新。
   async function importTeachers(file) {
     const fd = new FormData();
     fd.append("file", file);
@@ -157,6 +176,8 @@ export default function SchoolTeachersPages({ mode = "list" }) {
     return false;
   }
 
+  // 负责处理当前页面的提交型交互，并在成功后刷新界面状态。
+  // 跟读这个函数时，建议同时留意它依赖了哪些 state/ref，以及执行后会触发哪些界面刷新。
   async function openEdit(record) {
     const department = departments.find((item) => item.name === record.departmentName);
     const departmentId = department?.id || null;
@@ -173,12 +194,16 @@ export default function SchoolTeachersPages({ mode = "list" }) {
     setEditOpen(true);
   }
 
+  // 负责把页面中的一段独立交互逻辑拆出来，避免主组件渲染区混入过多细节。
+  // 跟读这个函数时，建议同时留意它依赖了哪些 state/ref，以及执行后会触发哪些界面刷新。
   async function onEditDeptChange(value) {
     const majors = await fetchMajors(value);
     setEditMajors(majors);
     editForm.setFieldsValue({ majorId: majors[0]?.id || null });
   }
 
+  // 负责处理当前页面的提交型交互，并在成功后刷新界面状态。
+  // 跟读这个函数时，建议同时留意它依赖了哪些 state/ref，以及执行后会触发哪些界面刷新。
   async function submitEdit(values) {
     if (!editingTeacher?.id) return;
     setSaving(true);
@@ -200,6 +225,8 @@ export default function SchoolTeachersPages({ mode = "list" }) {
     }
   }
 
+  // 负责切换界面状态或执行带副作用的收尾动作。
+  // 跟读这个函数时，建议同时留意它依赖了哪些 state/ref，以及执行后会触发哪些界面刷新。
   async function removeTeacher(record) {
     try {
       await api.delete(`/school/${school.id}/teachers/${record.id}`);
@@ -210,6 +237,8 @@ export default function SchoolTeachersPages({ mode = "list" }) {
     }
   }
 
+  // 负责切换界面状态或执行带副作用的收尾动作。
+  // 跟读这个函数时，建议同时留意它依赖了哪些 state/ref，以及执行后会触发哪些界面刷新。
   async function toggleEnabled(record, nextEnabled) {
     try {
       await api.post(`/school/${school.id}/teachers/${record.id}/toggle-enabled`, { enabled: nextEnabled });
@@ -220,6 +249,8 @@ export default function SchoolTeachersPages({ mode = "list" }) {
     }
   }
 
+  // 负责处理当前页面的提交型交互，并在成功后刷新界面状态。
+  // 跟读这个函数时，建议同时留意它依赖了哪些 state/ref，以及执行后会触发哪些界面刷新。
   async function resetPassword(record) {
     try {
       const r = await api.post(`/school/${school.id}/teachers/${record.id}/reset-password`);
@@ -238,6 +269,8 @@ export default function SchoolTeachersPages({ mode = "list" }) {
     }
   }
 
+  // 表格列配置集中描述了当前页面最核心的展示字段和每列的交互行为。
+  // 如果你想理解页面允许用户做什么，优先看这里的 render、按钮和状态标签。
   const columns = [
     { title: tr("姓名"), dataIndex: "name", key: "name", width: 120, ellipsis: true },
     { title: tr("邮箱"), dataIndex: "email", key: "email", width: 220, ellipsis: true },
