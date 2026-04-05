@@ -1,3 +1,4 @@
+# docker-compose 配置本服务的本地容器运行方式，方便联调和独立启动。
 services:
   face-service:
     build:

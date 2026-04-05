@@ -10,6 +10,7 @@ import com.kovr.proctor.infra.mapper.UserMapper;
 import com.kovr.proctor.security.UserDetailsImpl;
 import com.kovr.proctor.service.*;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.*;
 import org.springframework.jdbc.BadSqlGrammarException;
@@ -32,6 +33,7 @@ import java.util.concurrent.ConcurrentHashMap;
 @RestController
 @RequestMapping(value = "/api/student", produces = MediaType.APPLICATION_JSON_VALUE)
 @RequiredArgsConstructor
+@Slf4j
 public class StudentController {
     private final StudentMapper sp;
     private final ExamSessionMapper examSessionMapper;
@@ -43,6 +45,7 @@ public class StudentController {
     private final AnomalyEventService anomalyEventService;
     private final AnomalyPolicyService anomalyPolicyService;
     private final AnomalyEvidenceService anomalyEvidenceService;
+    private final ChunkAnomalyDispatchService chunkAnomalyDispatchService;
     private final SimpMessagingTemplate messagingTemplate;
     private final ObjectMapper om = new ObjectMapper();
     private final ConcurrentHashMap<String, Long> lastAnomalyAt = new ConcurrentHashMap<>();
@@ -54,6 +57,12 @@ public class StudentController {
 
     @Value("${app.face.min_det_score:0.5}")
     double minDetScore;
+
+    @Value("${anomaly.detect-from-frames:false}")
+    boolean detectFromFrames;
+
+    @Value("${anomaly.chunk.log-enabled:true}")
+    boolean chunkLogEnabled;
 
     /**
      * 封装当前类中的一段独立业务步骤，减少调用方直接处理过多细节。
@@ -410,14 +419,16 @@ public class StudentController {
     public Map<String, Object> uploadVideoChunk(@AuthenticationPrincipal UserDetailsImpl u,
                                                 @RequestPart("video") MultipartFile video,
                                                 @RequestParam(value = "chunkStartAtMs", required = false) Long chunkStartAtMs,
-                                                @RequestParam(value = "chunkEndAtMs", required = false) Long chunkEndAtMs) throws Exception {
+                                                @RequestParam(value = "chunkEndAtMs", required = false) Long chunkEndAtMs,
+                                                @RequestParam(value = "chunkId", required = false) String chunkId,
+                                                @RequestParam(value = "chunkSeq", required = false) Long chunkSeq) throws Exception {
         Map<String, Object> session;
         try {
             session = examSessionMapper.selectCurrentSessionByStudentId(u.getId());
         } catch (Exception ex) {
             return Map.of("ok", false, "msg", "查询考试房间失败，请稍后重试");
         }
-        return handleVideoChunkUpload(u, session, video, chunkStartAtMs, chunkEndAtMs);
+        return handleVideoChunkUpload(u, session, video, chunkStartAtMs, chunkEndAtMs, chunkId, chunkSeq);
     }
 
     /**
@@ -430,14 +441,16 @@ public class StudentController {
                                                          @PathVariable Long sessionId,
                                                          @RequestPart("video") MultipartFile video,
                                                          @RequestParam(value = "chunkStartAtMs", required = false) Long chunkStartAtMs,
-                                                         @RequestParam(value = "chunkEndAtMs", required = false) Long chunkEndAtMs) throws Exception {
+                                                         @RequestParam(value = "chunkEndAtMs", required = false) Long chunkEndAtMs,
+                                                         @RequestParam(value = "chunkId", required = false) String chunkId,
+                                                         @RequestParam(value = "chunkSeq", required = false) Long chunkSeq) throws Exception {
         Map<String, Object> session;
         try {
             session = examSessionMapper.selectSessionRoomByStudentAndSessionId(u.getId(), sessionId);
         } catch (Exception ex) {
             return Map.of("ok", false, "msg", "查询考试房间失败，请稍后重试");
         }
-        return handleVideoChunkUpload(u, session, video, chunkStartAtMs, chunkEndAtMs);
+        return handleVideoChunkUpload(u, session, video, chunkStartAtMs, chunkEndAtMs, chunkId, chunkSeq);
     }
 
     /**
@@ -448,16 +461,20 @@ public class StudentController {
                                                        Map<String, Object> session,
                                                        MultipartFile video,
                                                        Long chunkStartAtMs,
-                                                       Long chunkEndAtMs) throws Exception {
+                                                       Long chunkEndAtMs,
+                                                       String chunkId,
+                                                       Long chunkSeq) throws Exception {
         if (session == null || !(session.get("examRoomId") instanceof Number roomIdNumber)) {
             return Map.of("ok", false, "msg", "当前未分配考试房间");
         }
-        if (!isSessionRunning(session)) {
-            autoFinishSession(session,"TIME_UP");
-            return Map.of("ok", false, "ended", true, "autoSubmitted", true, "msg", "考试已结束，系统已自动交卷并退出");
+        String sessionStatus = String.valueOf(session.getOrDefault("sessionStatus", ""));
+        boolean sessionAlreadyClosed =
+                "FINISHED".equalsIgnoreCase(sessionStatus) || "CANCELLED".equalsIgnoreCase(sessionStatus);
+        boolean sessionRunning = isSessionRunning(session) && !sessionAlreadyClosed;
+        if (!sessionRunning && !sessionAlreadyClosed) {
+            autoFinishSession(session, "TIME_UP");
         }
-        if (!("FINISHED".equalsIgnoreCase(String.valueOf(session.getOrDefault("sessionStatus", "")))
-                || "CANCELLED".equalsIgnoreCase(String.valueOf(session.getOrDefault("sessionStatus", ""))))) {
+        if (sessionRunning) {
             Object sid = session.get("sessionId");
             if (sid instanceof Number n) {
                 markSessionEntered(n.longValue());
@@ -471,8 +488,109 @@ public class StudentController {
             startTs = endTs;
         }
         Long roomId = roomIdNumber.longValue();
-        anomalyEvidenceService.bufferVideoChunk(roomId, u.getId(), toLong(session.get("sessionId"), null), loadSchoolId(u.getId()), mime, bytes, startTs, endTs);
-        return Map.of("ok", true, "examRoomId", roomId, "size", bytes.length);
+        Long schoolId = loadSchoolId(u.getId());
+        if (chunkLogEnabled) {
+            log.info(
+                    "chunk upload received: roomId={}, studentId={}, sessionId={}, chunkId={}, chunkSeq={}, bytes={}, startTsMs={}, endTsMs={}, mime={}, sessionRunning={}, sessionStatus={}",
+                    roomId,
+                    u.getId(),
+                    toLong(session.get("sessionId"), null),
+                    chunkId,
+                    chunkSeq,
+                    bytes.length,
+                    startTs,
+                    endTs,
+                    mime,
+                    sessionRunning,
+                    sessionStatus
+            );
+        }
+        var buffered = anomalyEvidenceService.bufferVideoChunk(
+                roomId,
+                u.getId(),
+                toLong(session.get("sessionId"), null),
+                schoolId,
+                mime,
+                bytes,
+                startTs,
+                endTs,
+                chunkId
+        );
+        boolean storedOk = buffered.stored() || buffered.duplicate();
+        if (chunkLogEnabled) {
+            log.info(
+                    "chunk upload buffered: roomId={}, studentId={}, chunkId={}, chunkSeq={}, stored={}, deduped={}, filePath={}, startTsMs={}, endTsMs={}",
+                    roomId,
+                    u.getId(),
+                    buffered.segmentId() == null ? chunkId : buffered.segmentId(),
+                    chunkSeq,
+                    buffered.stored(),
+                    buffered.duplicate(),
+                    buffered.filePath(),
+                    buffered.startTsMs(),
+                    buffered.endTsMs()
+            );
+        }
+        if (storedOk && buffered.segmentId() != null && buffered.filePath() != null && !buffered.duplicate()) {
+            chunkAnomalyDispatchService.enqueue(
+                    roomId,
+                    u.getId(),
+                    schoolId,
+                    session,
+                    loadStudentName(u.getId(), u.getName()),
+                    buffered.filePath(),
+                    buffered.mime(),
+                    buffered.startTsMs(),
+                    buffered.endTsMs(),
+                    buffered.segmentId()
+            );
+            if (chunkLogEnabled) {
+                log.info(
+                        "chunk upload dispatched: roomId={}, studentId={}, chunkId={}, chunkSeq={}, detectSource=chunk",
+                        roomId,
+                        u.getId(),
+                        buffered.segmentId(),
+                        chunkSeq
+                );
+            }
+        }
+        if (!storedOk) {
+            log.warn(
+                    "chunk upload failed to buffer: roomId={}, studentId={}, sessionId={}, chunkId={}, chunkSeq={}, bytes={}",
+                    roomId,
+                    u.getId(),
+                    toLong(session.get("sessionId"), null),
+                    chunkId,
+                    chunkSeq,
+                    bytes.length
+            );
+            Map<String, Object> failed = new LinkedHashMap<>();
+            failed.put("ok", false);
+            failed.put("examRoomId", roomId);
+            failed.put("size", bytes.length);
+            failed.put("chunkId", chunkId);
+            failed.put("chunkSeq", chunkSeq == null ? 0L : chunkSeq);
+            failed.put("msg", "视频分片暂存失败，请稍后重试");
+            if (!sessionRunning) {
+                failed.put("ended", true);
+                failed.put("autoSubmitted", true);
+            }
+            return failed;
+        }
+        Map<String, Object> result = new LinkedHashMap<>();
+        result.put("ok", true);
+        result.put("examRoomId", roomId);
+        result.put("size", bytes.length);
+        result.put("chunkId", buffered.segmentId() == null ? chunkId : buffered.segmentId());
+        result.put("chunkSeq", chunkSeq == null ? 0L : chunkSeq);
+        result.put("deduped", buffered.duplicate());
+        result.put("stored", buffered.stored());
+        if (!sessionRunning) {
+            result.put("ended", true);
+            result.put("autoSubmitted", true);
+            result.put("msg", "考试已结束，系统已自动交卷并同步缓存视频");
+        }
+        return result;
     }
 
 
@@ -580,7 +698,7 @@ public class StudentController {
         String key = roomId + ":" + studentId;
 
         long lastAnomaly = lastAnomalyAt.getOrDefault(key, 0L);
-        if (tsMs - lastAnomaly >= policy.sampleIntervalMs()) {
+        if (detectFromFrames && tsMs - lastAnomaly >= policy.sampleIntervalMs()) {
             // 异常检测不必每帧都跑，按策略抽样即可，避免给 Python 服务带来过高压力。
             var events = anomalyClient.detect(roomId, studentId, bytes, mime, tsMs);
             merged.addAll(enrichEvents(events, policy));

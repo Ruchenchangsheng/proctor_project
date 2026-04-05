@@ -7,8 +7,12 @@ import { useAuthStore } from "../../store/auth";
 import { Button, Card, Typography, Badge, Space, Alert, Tag } from "antd";
 import { clearExamMediaReady, hasExamMediaReady, loadExamMediaPreference } from "./examMediaGate";
 import useCatalogTranslation from "../../i18n/useCatalogTranslation";
+import { createPersistentChunkQueue } from "../../utils/persistentChunkQueue";
 
 const { Text } = Typography;
+const FRAME_UPLOAD_INTERVAL_MS = 250;
+const FRAME_UPLOAD_MAX_EDGE = 640;
+const FRAME_UPLOAD_JPEG_QUALITY = 0.68;
 
 export default function ExamRunner() {
   const { tr } = useCatalogTranslation();
@@ -29,6 +33,9 @@ export default function ExamRunner() {
   const heartbeatTimerRef = useRef(null);
   const mediaRecorderRef = useRef(null);
   const videoChunkApiPathRef = useRef("");
+  const chunkQueueRef = useRef(null);
+  const chunkQueueKeyRef = useRef("");
+  const chunkSeqRef = useRef(0);
   const lastChunkTsRef = useRef(0);
   const uploadBusyRef = useRef(false);
   const normalExitRef = useRef(false);
@@ -85,6 +92,17 @@ export default function ExamRunner() {
       mediaRecorderRef.current.stop();
     }
     mediaRecorderRef.current = null;
+    const queue = chunkQueueRef.current;
+    if (queue) {
+      window.setTimeout(() => {
+        queue.flushNow().catch(() => { }).finally(() => {
+          queue.stop();
+          if (chunkQueueRef.current === queue) {
+            chunkQueueRef.current = null;
+          }
+        });
+      }, 400);
+    }
 
     stompRef.current?.deactivate();
     peersRef.current.forEach((pc) => pc.close());
@@ -151,7 +169,7 @@ export default function ExamRunner() {
 
   // 负责把页面中的一段独立交互逻辑拆出来，避免主组件渲染区混入过多细节。
   // 跟读这个函数时，建议同时留意它依赖了哪些 state/ref，以及执行后会触发哪些界面刷新。
-  const exitExam = (tip) => {
+  const exitExam = async (tip) => {
     if (exitingRef.current) return;
     exitingRef.current = true;
     normalExitRef.current = true;
@@ -173,6 +191,26 @@ export default function ExamRunner() {
     window.setTimeout(() => navigate("/student/home"), 1200);
   };
 
+  const buildChunkId = (seq) => {
+    const rand = typeof crypto !== "undefined" && typeof crypto.randomUUID === "function"
+      ? crypto.randomUUID().replace(/-/g, "")
+      : `${Date.now().toString(36)}${Math.random().toString(36).slice(2, 10)}`;
+    return `${seq.toString(36)}-${rand}`;
+  };
+
+  const uploadChunkDirectly = async (apiPath, blob, chunkStartAtMs, chunkEndAtMs, chunkId, seq) => {
+    const fd = new FormData();
+    fd.append("video", blob, "chunk.webm");
+    fd.append("chunkStartAtMs", String(chunkStartAtMs));
+    fd.append("chunkEndAtMs", String(chunkEndAtMs));
+    fd.append("chunkId", chunkId);
+    fd.append("chunkSeq", String(seq));
+    const resp = await api.post(apiPath, fd);
+    if (resp?.data?.ended) {
+      exitExam(resp.data?.msg || "考试已结束，系统已自动交卷");
+    }
+  };
+
   // 负责把页面中的一段独立交互逻辑拆出来，避免主组件渲染区混入过多细节。
   // 跟读这个函数时，建议同时留意它依赖了哪些 state/ref，以及执行后会触发哪些界面刷新。
   const uploadFrameOnce = async () => {
@@ -186,12 +224,13 @@ export default function ExamRunner() {
       // 学生端把当前视频帧截图成 JPEG 上传；后端会同时做人脸巡检、异常检测和证据缓冲。
       const canvas = canvasRef.current || document.createElement("canvas");
       canvasRef.current = canvas;
-      canvas.width = video.videoWidth;
-      canvas.height = video.videoHeight;
+      const scale = Math.min(1, FRAME_UPLOAD_MAX_EDGE / Math.max(video.videoWidth, video.videoHeight));
+      canvas.width = Math.max(1, Math.round(video.videoWidth * scale));
+      canvas.height = Math.max(1, Math.round(video.videoHeight * scale));
       const ctx = canvas.getContext("2d");
       if (!ctx) return;
       ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
-      const blob = await new Promise((resolve) => canvas.toBlob(resolve, "image/jpeg", 0.98));
+      const blob = await new Promise((resolve) => canvas.toBlob(resolve, "image/jpeg", FRAME_UPLOAD_JPEG_QUALITY));
       if (!blob) return;
 
       const fd = new FormData();
@@ -242,8 +281,8 @@ export default function ExamRunner() {
       if (uploadLoopStoppedRef.current) return;
       await uploadFrameOnce();
       if (uploadLoopStoppedRef.current) return;
-      // 与异常模型 30fps 的训练口径对齐，这里固定按约 33ms 一次上传。
-      uploadTimerRef.current = window.setTimeout(loop, 33);
+      // 帧上传仅保留身份巡检和教师实时画面的轻量链路，不再追求高频上传。
+      uploadTimerRef.current = window.setTimeout(loop, FRAME_UPLOAD_INTERVAL_MS);
     };
     uploadTimerRef.current = window.setTimeout(loop, 0);
   };
@@ -274,28 +313,64 @@ export default function ExamRunner() {
       const mimeType = mimeCandidates.find((candidate) => MediaRecorder.isTypeSupported(candidate)) || "";
       const options = {
         ...(mimeType ? { mimeType } : {}),
-        videoBitsPerSecond: mimeType.includes("vp9") ? 6_000_000 : mimeType.includes("vp8") ? 4_000_000 : 2_500_000,
+        videoBitsPerSecond: mimeType.includes("vp9") ? 1_200_000 : mimeType.includes("vp8") ? 1_500_000 : 1_200_000,
       };
+
+      if (chunkQueueRef.current) {
+        chunkQueueRef.current.stop();
+        chunkQueueRef.current = null;
+      }
+      if (chunkQueueKeyRef.current) {
+        try {
+          chunkQueueRef.current = createPersistentChunkQueue({
+            api,
+            apiPath,
+            sessionKey: chunkQueueKeyRef.current,
+            onServerEnded: (data) => {
+              if (data?.ended) {
+                exitExam(data?.msg || "考试已结束，系统已自动交卷");
+              }
+            },
+            onQueueError: (error) => {
+              console.warn("[student-exam] persistent chunk queue error", error);
+            },
+          });
+          chunkQueueRef.current.start();
+        } catch (error) {
+          console.warn("[student-exam] persistent chunk queue init failed", error);
+          chunkQueueRef.current = null;
+        }
+      }
 
       const recorder = new MediaRecorder(stream, options);
       mediaRecorderRef.current = recorder;
       lastChunkTsRef.current = Date.now();
+      chunkSeqRef.current = 0;
 
       recorder.ondataavailable = async (event) => {
         if (!event.data || event.data.size <= 0) return;
         const chunkEndAtMs = Date.now();
         const chunkStartAtMs = lastChunkTsRef.current || Math.max(0, chunkEndAtMs - 1000);
         lastChunkTsRef.current = chunkEndAtMs;
-
-        const fd = new FormData();
-        fd.append("video", event.data, "chunk.webm");
-        fd.append("chunkStartAtMs", String(chunkStartAtMs));
-        fd.append("chunkEndAtMs", String(chunkEndAtMs));
+        const seq = ++chunkSeqRef.current;
+        const chunkId = buildChunkId(seq);
 
         try {
-          await api.post(apiPath, fd);
+          if (chunkQueueRef.current) {
+            await chunkQueueRef.current.enqueue({
+              chunkId,
+              seq,
+              blob: event.data,
+              mimeType: event.data.type || mimeType || "video/webm",
+              chunkStartAtMs,
+              chunkEndAtMs,
+            });
+          } else {
+            await uploadChunkDirectly(apiPath, event.data, chunkStartAtMs, chunkEndAtMs, chunkId, seq);
+          }
         } catch {
-          // 视频分片失败不影响主流程
+          // 持久队列不可用时退回直传，确保录制链路至少还能工作。
+          await uploadChunkDirectly(apiPath, event.data, chunkStartAtMs, chunkEndAtMs, chunkId, seq).catch(() => { });
         }
       };
 
@@ -417,6 +492,9 @@ export default function ExamRunner() {
         roomSignalIdRef.current = examRoomSignalId;
         frameApiPathRef.current = sessionId ? `/student/exams/${sessionId}/frame` : "/student/current-room/frame";
         videoChunkApiPathRef.current = sessionId ? `/student/exams/${sessionId}/video-chunk` : "/student/current-room/video-chunk";
+        chunkQueueKeyRef.current = sessionId
+          ? `exam:${sessionId}:${studentSenderId}`
+          : `room:${examRoomSignalId}:${studentSenderId}`;
 
         localStreamRef.current = stream;
 

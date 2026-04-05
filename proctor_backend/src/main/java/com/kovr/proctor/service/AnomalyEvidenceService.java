@@ -133,32 +133,48 @@ public class AnomalyEvidenceService {
         }
     }
 
-    public void bufferVideoChunk(Long roomId,
-                                 Long studentId,
-                                 Long sessionId,
-                                 Long schoolId,
-                                 String mime,
-                                 byte[] bytes,
-                                 long startTsMs,
-                                 long endTsMs) {
+    public BufferedVideoChunkResult bufferVideoChunk(Long roomId,
+                                                     Long studentId,
+                                                     Long sessionId,
+                                                     Long schoolId,
+                                                     String mime,
+                                                     byte[] bytes,
+                                                     long startTsMs,
+                                                     long endTsMs,
+                                                     String preferredSegmentId) {
         // 这个方法处理的是学生端 MediaRecorder 每秒上传的一小段视频。
         // 这些分片不会立刻拼成证据，而是先分别进入“磁盘长期存储”和“内存短期窗口”两条路径：
         // 1. 磁盘分片用于考试结束后按时间窗精确回放；
         // 2. 内存缓冲用于刚发生异常、数据库查询还没完全追上时的兜底拼接。
         if (roomId == null || studentId == null || bytes == null || bytes.length == 0) {
             // 房间、学生或分片内容缺失时，这段数据无法再与任何考试上下文关联，直接忽略。
-            return;
+            return BufferedVideoChunkResult.skipped();
         }
         String key = roomId + ":" + studentId;
         // 前端上传的结束时间理论上应晚于开始时间；这里做一次兜底，避免时钟抖动导致负区间。
         long normalizedEnd = Math.max(endTsMs, startTsMs);
         StoragePathSpec storagePath = resolveStoragePath(studentId, sessionId, schoolId, null, null);
         Path recordDir = storagePath.recordingDir();
+        String segmentId = normalizeSegmentId(preferredSegmentId);
+        if (segmentId != null) {
+            RecordingSegmentEntity existing = recordingSegmentMapper.selectBySegmentId(segmentId);
+            if (existing != null) {
+                return BufferedVideoChunkResult.duplicate(
+                        existing.getSegmentId(),
+                        existing.getFilePath(),
+                        existing.getChunkStartTsMs() == null ? startTsMs : existing.getChunkStartTsMs(),
+                        existing.getChunkEndTsMs() == null ? normalizedEnd : existing.getChunkEndTsMs(),
+                        existing.getMediaType() == null ? mime : existing.getMediaType()
+                );
+            }
+        }
         try {
             // 视频分片先原样落盘，后面证据线程再按异常时间窗挑选并拼接成完整片段。
             Files.createDirectories(recordDir);
             // segmentId 是数据库与磁盘文件之间的稳定关联键，后面异常证据会通过它回溯原始分片。
-            String segmentId = UUID.randomUUID().toString().replace("-", "");
+            if (segmentId == null) {
+                segmentId = UUID.randomUUID().toString().replace("-", "");
+            }
             // 文件名直接带上起止时间，方便离线排查时只看目录也能知道这段视频覆盖了哪个时间窗。
             String fileName = String.format(Locale.ROOT, "%d_%d_%s.webm", startTsMs, normalizedEnd, segmentId);
             Path chunkPath = recordDir.resolve(fileName);
@@ -185,10 +201,26 @@ public class AnomalyEvidenceService {
             entity.setFilePath(chunkPath.toAbsolutePath().toString());
             entity.setMediaType(mime == null ? "video/webm" : mime);
             recordingSegmentMapper.insert(entity);
+            return BufferedVideoChunkResult.stored(
+                    segmentId,
+                    chunkPath.toAbsolutePath().toString(),
+                    startTsMs,
+                    normalizedEnd,
+                    mime == null ? "video/webm" : mime
+            );
         } catch (Exception ex) {
             // 分片落库失败不会中断考试主流程；学生仍可继续考试，只是这段证据可能丢失。
             log.warn("Failed to persist video chunk: roomId={}, studentId={}, err={}", roomId, studentId, ex.toString());
+            return BufferedVideoChunkResult.failed();
         }
+    }
+
+    private String normalizeSegmentId(String preferredSegmentId) {
+        if (preferredSegmentId == null || preferredSegmentId.isBlank()) {
+            return null;
+        }
+        String sanitized = preferredSegmentId.replaceAll("[^a-zA-Z0-9_-]", "");
+        return sanitized.isBlank() ? null : sanitized.substring(0, Math.min(64, sanitized.length()));
     }
 
     public List<Map<String, Object>> captureEvidenceBatch(
@@ -1067,6 +1099,32 @@ public class AnomalyEvidenceService {
     }
 
     private record VideoChunkSnapshot(String segmentId, long startTsMs, long endTsMs, String mime, String filePath) {
+    }
+
+    public record BufferedVideoChunkResult(
+            String segmentId,
+            String filePath,
+            long startTsMs,
+            long endTsMs,
+            String mime,
+            boolean stored,
+            boolean duplicate
+    ) {
+        static BufferedVideoChunkResult stored(String segmentId, String filePath, long startTsMs, long endTsMs, String mime) {
+            return new BufferedVideoChunkResult(segmentId, filePath, startTsMs, endTsMs, mime, true, false);
+        }
+
+        static BufferedVideoChunkResult duplicate(String segmentId, String filePath, long startTsMs, long endTsMs, String mime) {
+            return new BufferedVideoChunkResult(segmentId, filePath, startTsMs, endTsMs, mime, false, true);
+        }
+
+        static BufferedVideoChunkResult skipped() {
+            return new BufferedVideoChunkResult(null, null, 0L, 0L, null, false, false);
+        }
+
+        static BufferedVideoChunkResult failed() {
+            return new BufferedVideoChunkResult(null, null, 0L, 0L, null, false, false);
+        }
     }
 
     private record EvidenceRecord(

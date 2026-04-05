@@ -1,3 +1,6 @@
+"""
+runtime_anomaly_support 汇总实时异常检测需要的标签规则、特征提取、重采样和模型加载辅助逻辑。
+"""
 from __future__ import annotations
 
 import os
@@ -52,6 +55,7 @@ DEFAULT_MIN_DUR_SEC = {
 
 @dataclass(frozen=True)
 class ClassRule:
+    # 每个异常标签都独立维护进入阈值、退出阈值和最小时长，避免全部标签共用同一硬编码。
     enter_th: float
     exit_th: float
     min_dur_ms: int
@@ -72,6 +76,7 @@ def choose_anomaly_model_path(explicit_path: str | None = None) -> str:
 
 
 def parse_labels(labels_raw: str | None, expected_count: int | None = None) -> list[str]:
+    # 标签既可以来自环境变量，也可以根据模型输出维度回退到默认顺序。
     if labels_raw:
         parsed = [item.strip() for item in labels_raw.split(",") if item.strip()]
     else:
@@ -95,6 +100,7 @@ def parse_labels(labels_raw: str | None, expected_count: int | None = None) -> l
 def build_class_rules(labels: list[str], default_enter: float, default_exit: float) -> dict[str, ClassRule]:
     rules: dict[str, ClassRule] = {}
     for label in labels:
+        # 最小时长允许通过环境变量单独覆盖，便于线上按类别调优而不重训模型。
         env_key = f"ANOMALY_MIN_DUR_MS_{label.upper()}"
         min_dur_ms = int(round(DEFAULT_MIN_DUR_SEC.get(label, 0.3) * 1000))
         min_dur_ms = int(os.getenv(env_key, str(min_dur_ms)))
@@ -186,8 +192,15 @@ class RuntimeFeatureExtractor:
         self.face_mesh = None
         self.pose = None
         self.segmentation = None
+        self.init_error = None
 
         if mp is None:
+            self.init_error = "mediapipe import failed"
+            return
+
+        if not hasattr(mp, "solutions"):
+            version = getattr(mp, "__version__", "unknown")
+            self.init_error = f"mediapipe {version} does not expose mp.solutions"
             return
 
         try:
@@ -224,6 +237,10 @@ class RuntimeFeatureExtractor:
         except Exception:
             self.segmentation = None
 
+        if all(component is None for component in (self.face_detector, self.face_mesh, self.pose, self.segmentation)):
+            version = getattr(mp, "__version__", "unknown")
+            self.init_error = f"mediapipe {version} initialized but no vision solution backend is available"
+
     @staticmethod
     def _letterbox_square(bgr: np.ndarray, dst_size: int = 256) -> np.ndarray:
         h, w = bgr.shape[:2]
@@ -237,6 +254,10 @@ class RuntimeFeatureExtractor:
         return out
 
     def extract(self, frame_bgr: np.ndarray, temporal_state: dict) -> np.ndarray:
+        # 这里返回的 24 维特征需要尽量贴近离线训练口径，否则线上模型效果会明显漂移。
+        if self.init_error:
+            raise RuntimeError(self.init_error)
+
         square_bgr = self._letterbox_square(frame_bgr, dst_size=256)
         rgb = cv2.cvtColor(square_bgr, cv2.COLOR_BGR2RGB)
         gray = cv2.cvtColor(square_bgr, cv2.COLOR_BGR2GRAY)

@@ -4,6 +4,7 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.core.io.ByteArrayResource;
+import org.springframework.core.io.FileSystemResource;
 import org.springframework.http.HttpEntity;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
@@ -97,6 +98,81 @@ public class AnomalyClient {
                 log.warn(
                         "anomaly/frame request failed: roomId={}, studentId={}, tsMs={}, err={}",
                         roomId, studentId, tsMs, ex.getMessage(), ex
+                );
+            }
+            return List.of();
+        }
+    }
+
+    @SuppressWarnings("unchecked")
+    public List<Map<String, Object>> detectChunk(
+            Long roomId,
+            Long studentId,
+            String filePath,
+            String mime,
+            long chunkStartTsMs,
+            long chunkEndTsMs,
+            String chunkId
+    ) {
+        if (base == null || base.isBlank() || filePath == null || filePath.isBlank()) return List.of();
+        try {
+            var body = new LinkedMultiValueMap<String, Object>();
+            body.add("file", new FileSystemResource(filePath));
+            body.add("room_id", String.valueOf(roomId));
+            body.add("student_id", String.valueOf(studentId));
+            body.add("chunk_start_ts_ms", String.valueOf(chunkStartTsMs));
+            body.add("chunk_end_ts_ms", String.valueOf(chunkEndTsMs));
+            if (chunkId != null && !chunkId.isBlank()) {
+                body.add("chunk_id", chunkId);
+            }
+
+            HttpHeaders h = new HttpHeaders();
+            h.setContentType(MediaType.MULTIPART_FORM_DATA);
+            h.setAccept(List.of(MediaType.APPLICATION_JSON));
+            if (mime != null && !mime.isBlank()) {
+                h.set("X-Chunk-Mime", mime);
+            }
+
+            Map<String, Object> resp = rt.postForObject(base + "/anomaly/chunk", new HttpEntity<>(body, h), Map.class);
+            if (resp == null) {
+                if (logResults) {
+                    log.warn(
+                            "anomaly/chunk response is null: roomId={}, studentId={}, chunkStartTsMs={}, chunkEndTsMs={}",
+                            roomId, studentId, chunkStartTsMs, chunkEndTsMs
+                    );
+                }
+                return List.of();
+            }
+
+            Object okRaw = resp.get("ok");
+            boolean ok = okRaw instanceof Boolean b && b;
+            if (!ok) {
+                if (logResults) {
+                    log.warn(
+                            "anomaly/chunk response not ok: roomId={}, studentId={}, chunkId={}, resp={}",
+                            roomId, studentId, chunkId, summarizeResponse(resp)
+                    );
+                }
+                return List.of();
+            }
+
+            Object events = resp.getOrDefault("events", Collections.emptyList());
+            if (events instanceof List<?> list) {
+                List<Map<String, Object>> parsedEvents = (List<Map<String, Object>>) (List<?>) list;
+                if (logResults && !parsedEvents.isEmpty()) {
+                    log.info(
+                            "anomaly/chunk result: roomId={}, studentId={}, chunkId={}, resp={}",
+                            roomId, studentId, chunkId, summarizeResponse(resp)
+                    );
+                }
+                return parsedEvents;
+            }
+            return List.of();
+        } catch (Exception ex) {
+            if (logResults) {
+                log.warn(
+                        "anomaly/chunk request failed: roomId={}, studentId={}, chunkId={}, err={}",
+                        roomId, studentId, chunkId, ex.getMessage(), ex
                 );
             }
             return List.of();

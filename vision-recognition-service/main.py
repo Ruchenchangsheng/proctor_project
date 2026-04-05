@@ -2,11 +2,6 @@
 """
 人脸识别 + 实时异常检测服务（FastAPI）
 
-接口说明：
-- /health
-- /embed
-- /verify
-- /anomaly/frame
 
 本版本重点：
 1. 人脸注册与 1:1 核验仍然使用 insightface。
@@ -19,7 +14,9 @@
 
 from collections import defaultdict, deque
 import logging
+from logging.handlers import RotatingFileHandler
 import os
+import tempfile
 import time
 
 import cv2
@@ -51,7 +48,39 @@ from runtime_anomaly_support import (
 )
 
 
-log = logging.getLogger("vision-recognition-service")
+def configure_service_logger():
+    logger = logging.getLogger("vision-recognition-service")
+    if logger.handlers:
+        return logger
+
+    log_dir = os.getenv("VISION_LOG_DIR", os.path.join(os.path.dirname(__file__), "logs"))
+    log_file = os.getenv("VISION_LOG_FILE", os.path.join(log_dir, "vision-recognition-service.txt"))
+    max_bytes = int(os.getenv("VISION_LOG_MAX_BYTES", str(20 * 1024 * 1024)))
+    backup_count = int(os.getenv("VISION_LOG_BACKUP_COUNT", "10"))
+    os.makedirs(log_dir, exist_ok=True)
+
+    logger.setLevel(logging.INFO)
+    formatter = logging.Formatter("%(asctime)s %(levelname)s [%(name)s] %(message)s")
+
+    console_handler = logging.StreamHandler()
+    console_handler.setFormatter(formatter)
+
+    file_handler = RotatingFileHandler(
+        log_file,
+        maxBytes=max_bytes,
+        backupCount=backup_count,
+        encoding="utf-8",
+    )
+    file_handler.setFormatter(formatter)
+
+    logger.addHandler(console_handler)
+    logger.addHandler(file_handler)
+    logger.propagate = False
+    logger.info("vision logger ready: file=%s maxBytes=%s backupCount=%s", log_file, max_bytes, backup_count)
+    return logger
+
+
+log = configure_service_logger()
 
 app = FastAPI(title="FaceSvc", version="2.0.0")
 
@@ -67,6 +96,7 @@ face_app.prepare(ctx_id=0, det_size=(640, 640))
 
 
 def imread_bgr(data: bytes):
+    # 所有上传文件先在这里统一解码成 OpenCV 的 BGR 图像，后续接口复用同一入口。
     arr = np.frombuffer(data, np.uint8)
     img = cv2.imdecode(arr, cv2.IMREAD_COLOR)
     if img is None:
@@ -87,6 +117,7 @@ def health():
 
 @app.post("/embed")
 async def embed(file: UploadFile = File(...)):
+    # 注册照或核验照都会先经过这个接口提取 embedding，返回值尽量保持后端易消费。
     try:
         img = imread_bgr(await file.read())
     except Exception:
@@ -100,6 +131,7 @@ async def embed(file: UploadFile = File(...)):
     if not faces:
         return {"ok": False, "msg": "no face"}
 
+    # 如果画面里出现多张脸，后端当前只取检测分数最高的那一张作为主人脸。
     faces.sort(key=lambda item: float(item.det_score), reverse=True)
     face = faces[0]
     x1, y1, x2, y2 = [int(v) for v in face.bbox]
@@ -119,6 +151,7 @@ async def verify(
     target: str = Form(...),
     threshold: float = Form(0.35),
 ):
+    # 这里做的是最轻量的 1:1 相似度比较，复杂的账号状态和阈值策略仍由 Java 后端控制。
     try:
         img = imread_bgr(await file.read())
     except Exception:
@@ -132,6 +165,7 @@ async def verify(
     if not faces:
         return VerifyResp(ok=False, score=0.0, threshold=threshold)
 
+    # insightface 给出的 embedding 已归一化，所以这里直接做点积就等价于余弦相似度。
     faces.sort(key=lambda item: float(item.det_score), reverse=True)
     curr = faces[0].normed_embedding
     tgt = np.array(np.fromstring(target.strip("[]"), sep=","), dtype=np.float32)
@@ -177,6 +211,14 @@ class OnlineAnomalyDetector:
         self.last_eval_ts = {}
         self.smoothed_probs = {}
         self.states = defaultdict(dict)
+        self.chunk_buffers = defaultdict(deque)
+        self.chunk_last_eval_ts = {}
+        self.chunk_smoothed_probs = {}
+        self.chunk_states = defaultdict(dict)
+        self.chunk_decode_fps = max(4, int(os.getenv("ANOMALY_CHUNK_DECODE_FPS", "12")))
+        self.chunk_log_enabled = os.getenv("ANOMALY_DEBUG_CHUNK_LOG", "1").strip().lower() not in ("0", "false", "no", "off")
+        self.chunk_skip_log_interval_ms = int(os.getenv("ANOMALY_CHUNK_SKIP_LOG_INTERVAL_MS", "4000"))
+        self.chunk_last_skip_log = {}
 
         self.model_backend = "rule"
         self.onnx_sess = None
@@ -212,6 +254,7 @@ class OnlineAnomalyDetector:
     def _sync_labels(self, n_classes: int | None):
         if not n_classes:
             return
+        # 线上标签数必须和模型输出维度对齐，否则后端记录的异常名称会错位。
         self.labels = parse_labels(os.getenv("ANOMALY_LABELS"), expected_count=n_classes)
         self.class_rules = build_class_rules(self.labels, self.enter_th, self.exit_th)
 
@@ -318,6 +361,7 @@ class OnlineAnomalyDetector:
         return np.array([scores.get(label, 0.0) for label in self.labels], dtype=np.float32)
 
     def infer_window(self, feats_np: np.ndarray) -> np.ndarray:
+        # 推理优先使用真实模型；只有模型未加载或推理异常时才回退到规则近似分数。
         try:
             if self.model_backend == "torch":
                 probs = self._infer_torch(feats_np)
@@ -332,12 +376,14 @@ class OnlineAnomalyDetector:
         return self._fallback_probs(feats_np)
 
     def _prune_buffer(self, buf: deque, now_ms: int):
+        # 只保留最近两个窗口附近的数据，足够支持重采样和滑窗推理即可。
         keep_after = now_ms - max(self.window_ms * 2, self.window_ms + self.step_ms * 2)
         while buf and buf[0][0] < keep_after:
             buf.popleft()
 
-    def _build_events(self, key: str, now_ms: int, probs: np.ndarray) -> list[dict]:
-        per_label_states = self.states[key]
+    def _build_events(self, key: str, now_ms: int, probs: np.ndarray, state_store=None) -> list[dict]:
+        store = self.states if state_store is None else state_store
+        per_label_states = store[key]
         events = []
 
         for idx, label in enumerate(self.labels):
@@ -345,6 +391,7 @@ class OnlineAnomalyDetector:
             prob = float(probs[idx]) if idx < len(probs) else 0.0
             state = per_label_states.get(label, {"active": False, "enter_ts": 0, "peak_score": 0.0})
 
+            # enter / exit 按标签分别维护状态，这样学生可以同时触发多种异常而不互相覆盖。
             if not state["active"] and prob >= rule.enter_th:
                 state = {"active": True, "enter_ts": now_ms, "peak_score": prob}
                 events.append({
@@ -362,6 +409,7 @@ class OnlineAnomalyDetector:
                 if prob < rule.exit_th:
                     enter_ts = int(state.get("enter_ts") or now_ms)
                     duration_ms = max(0, now_ms - enter_ts)
+                    # 只有持续时间达标才真正产出 exit 事件，避免瞬时抖动造成大量误报。
                     if duration_ms >= rule.min_dur_ms:
                         peak = float(state.get("peak_score") or prob)
                         events.append({
@@ -379,13 +427,147 @@ class OnlineAnomalyDetector:
 
             per_label_states[label] = state
 
-        self.states[key] = per_label_states
+        store[key] = per_label_states
         return events
+
+    def _emit_events_from_samples(
+        self,
+        key: str,
+        now_ms: int,
+        window_samples: list[tuple[int, np.ndarray]],
+        last_eval_store: dict,
+        smoothed_store: dict,
+        state_store,
+    ) -> list[dict]:
+        feats_np = resample_features_by_time(window_samples, self.target_len)
+        raw_probs = self.infer_window(feats_np)
+        prev_probs = smoothed_store.get(key)
+        if prev_probs is None:
+            smoothed = raw_probs
+        else:
+            smoothed = self.smooth_alpha * raw_probs + (1.0 - self.smooth_alpha) * prev_probs
+        smoothed_store[key] = smoothed
+        last_eval_store[key] = now_ms
+        return self._build_events(key, now_ms, smoothed, state_store)
+
+    def _prune_chunk_buffer(self, buf: deque, now_ms: int):
+        keep_after = now_ms - max(self.window_ms * 2, self.window_ms + self.step_ms * 2)
+        kept = [item for item in buf if item["end_ts_ms"] >= keep_after]
+        buf.clear()
+        buf.extend(
+            sorted(
+                kept,
+                key=lambda item: (item["start_ts_ms"], item["end_ts_ms"], item.get("chunk_id") or ""),
+            )
+        )
+
+    def _log_chunk_skip(self, chunk_key: str, now_ms: int, reason: str, **kwargs):
+        if not self.chunk_log_enabled:
+            return
+        skip_key = f"{chunk_key}:{reason}"
+        last_at = int(self.chunk_last_skip_log.get(skip_key, 0))
+        if now_ms - last_at < self.chunk_skip_log_interval_ms:
+            return
+        self.chunk_last_skip_log[skip_key] = now_ms
+        log.info("anomaly chunk waiting: key=%s reason=%s extra=%s", chunk_key, reason, kwargs)
+
+    def _decode_chunk_window_samples(self, window_chunks: list[dict]) -> list[tuple[int, np.ndarray]]:
+        if not window_chunks:
+            return []
+
+        ordered = sorted(
+            window_chunks,
+            key=lambda item: (item["start_ts_ms"], item["end_ts_ms"], item.get("chunk_id") or ""),
+        )
+        stream_start = int(ordered[0]["start_ts_ms"])
+        stream_end = int(max(item["end_ts_ms"] for item in ordered))
+        tmp_path = None
+        cap = None
+        try:
+            with tempfile.NamedTemporaryFile(delete=False, suffix=".webm") as tmp:
+                for chunk in ordered:
+                    tmp.write(chunk["bytes"])
+                tmp_path = tmp.name
+
+            cap = cv2.VideoCapture(tmp_path)
+            if not cap.isOpened():
+                if self.chunk_log_enabled:
+                    log.warning(
+                        "anomaly chunk decode failed: reason=open_failed chunkCount=%s spanMs=%s",
+                        len(ordered),
+                        stream_end - stream_start,
+                    )
+                return []
+
+            src_fps = float(cap.get(cv2.CAP_PROP_FPS) or 0.0)
+            stride = 1
+            if src_fps > 1.0 and self.chunk_decode_fps > 0:
+                stride = max(1, int(round(src_fps / float(self.chunk_decode_fps))))
+
+            temporal_state = {}
+            raw_positions = []
+            feats = []
+            frame_idx = 0
+            while True:
+                ok, frame = cap.read()
+                if not ok:
+                    break
+                keep = stride <= 1 or frame_idx % stride == 0
+                if keep:
+                    feats.append(self.feature_extractor.extract(frame, temporal_state))
+                    raw_positions.append(float(cap.get(cv2.CAP_PROP_POS_MSEC) or 0.0))
+                frame_idx += 1
+
+            if not feats:
+                if self.chunk_log_enabled:
+                    log.info(
+                        "anomaly chunk decode empty: chunkCount=%s stride=%s srcFps=%.3f",
+                        len(ordered),
+                        stride,
+                        src_fps,
+                    )
+                return []
+
+            if self.chunk_log_enabled:
+                log.info(
+                    "anomaly chunk decoded: chunkCount=%s sampleCount=%s srcFps=%.3f stride=%s spanMs=%s",
+                    len(ordered),
+                    len(feats),
+                    src_fps,
+                    stride,
+                    stream_end - stream_start,
+                )
+
+            raw_positions_np = np.asarray(raw_positions, dtype=np.float32)
+            if (
+                raw_positions_np.size > 1
+                and np.isfinite(raw_positions_np).all()
+                and float(raw_positions_np[-1] - raw_positions_np[0]) > 1.0
+            ):
+                raw_positions_np = raw_positions_np - raw_positions_np[0]
+                raw_span = float(raw_positions_np[-1])
+                mapped_ts = stream_start + (raw_positions_np / max(raw_span, 1e-6)) * max(1.0, stream_end - stream_start)
+            else:
+                mapped_ts = np.linspace(stream_start, stream_end, num=len(feats), endpoint=True, dtype=np.float32)
+
+            return [
+                (int(round(float(mapped_ts[idx]))), np.asarray(feats[idx], dtype=np.float32))
+                for idx in range(len(feats))
+            ]
+        finally:
+            if cap is not None:
+                cap.release()
+            if tmp_path and os.path.exists(tmp_path):
+                try:
+                    os.remove(tmp_path)
+                except OSError:
+                    pass
 
     def update(self, room_id: int, student_id: int, ts_ms: int, bgr: np.ndarray) -> list[dict]:
         now_ms = ts_ms or int(time.time() * 1000)
         key = f"{room_id}:{student_id}"
 
+        # 每次上传先抽一帧特征放进时间序列，再看是否已经积累到足以推理的一个窗口。
         temporal_state = self.feature_states[key]
         feat = self.feature_extractor.extract(bgr, temporal_state)
 
@@ -395,28 +577,131 @@ class OnlineAnomalyDetector:
 
         last_eval = self.last_eval_ts.get(key, 0)
         if now_ms - last_eval < self.step_ms:
+            # 没到步进间隔时只缓存样本，不触发推理；这样同一窗口不会被过于频繁地重复计算。
             return []
 
         window_start = now_ms - self.window_ms
         window_samples = [(ts, item) for ts, item in buf if ts >= window_start]
         if len(window_samples) < self.min_required_samples:
+            # 样本量太少时，即使硬推理也不可靠，所以宁可返回空事件等待后续更多帧。
             return []
 
         span_ms = window_samples[-1][0] - window_samples[0][0]
         if span_ms < int(self.window_ms * 0.9):
+            # 即使样本数量够多，如果时间跨度不够 8 秒左右，也说明窗口内容仍不完整。
             return []
 
-        feats_np = resample_features_by_time(window_samples, self.target_len)
-        raw_probs = self.infer_window(feats_np)
-        prev_probs = self.smoothed_probs.get(key)
-        if prev_probs is None:
-            smoothed = raw_probs
-        else:
-            smoothed = self.smooth_alpha * raw_probs + (1.0 - self.smooth_alpha) * prev_probs
-        self.smoothed_probs[key] = smoothed
-        self.last_eval_ts[key] = now_ms
+        # 先做时间重采样，再做模型推理，最后对概率做平滑，尽量减少浏览器上传抖动带来的误报。
+        return self._emit_events_from_samples(
+            key,
+            now_ms,
+            window_samples,
+            self.last_eval_ts,
+            self.smoothed_probs,
+            self.states,
+        )
 
-        return self._build_events(key, now_ms, smoothed)
+    def update_chunk(
+        self,
+        room_id: int,
+        student_id: int,
+        chunk_start_ts_ms: int,
+        chunk_end_ts_ms: int,
+        video_bytes: bytes,
+        chunk_id: str | None = None,
+    ) -> list[dict]:
+        now_ms = int(chunk_end_ts_ms or time.time() * 1000)
+        start_ms = int(chunk_start_ts_ms or max(0, now_ms - 1000))
+        key = f"{room_id}:{student_id}"
+        chunk_key = f"chunk:{key}"
+
+        buf = self.chunk_buffers[key]
+        if chunk_id and any(item.get("chunk_id") == chunk_id for item in buf):
+            if self.chunk_log_enabled:
+                log.info("anomaly chunk ignored duplicate: key=%s chunkId=%s", chunk_key, chunk_id)
+            return []
+
+        buf.append({
+            "chunk_id": chunk_id or "",
+            "start_ts_ms": start_ms,
+            "end_ts_ms": now_ms,
+            "bytes": video_bytes,
+        })
+        ordered_buf = sorted(
+            buf,
+            key=lambda item: (item["start_ts_ms"], item["end_ts_ms"], item.get("chunk_id") or ""),
+        )
+        buf.clear()
+        buf.extend(ordered_buf)
+        self._prune_chunk_buffer(buf, now_ms)
+        if self.chunk_log_enabled:
+            log.info(
+                "anomaly chunk received: key=%s chunkId=%s bytes=%s startTsMs=%s endTsMs=%s bufferChunks=%s",
+                chunk_key,
+                chunk_id or "",
+                len(video_bytes),
+                start_ms,
+                now_ms,
+                len(buf),
+            )
+
+        anchor_ms = max(int(item["end_ts_ms"]) for item in buf)
+        last_eval = self.chunk_last_eval_ts.get(chunk_key, 0)
+        late_fill_current_window = now_ms < last_eval and anchor_ms >= last_eval
+        if anchor_ms - last_eval < self.step_ms and not late_fill_current_window:
+            self._log_chunk_skip(chunk_key, anchor_ms, "wait_step", last_eval=last_eval, anchor_ms=anchor_ms)
+            return []
+
+        window_start = anchor_ms - self.window_ms
+        window_chunks = [item for item in buf if item["end_ts_ms"] >= window_start and item["start_ts_ms"] <= anchor_ms]
+        if not window_chunks:
+            self._log_chunk_skip(chunk_key, anchor_ms, "no_window_chunks", anchor_ms=anchor_ms)
+            return []
+
+        span_start = min(int(item["start_ts_ms"]) for item in window_chunks)
+        span_end = max(int(item["end_ts_ms"]) for item in window_chunks)
+        span_ms = span_end - span_start
+        if span_ms < int(self.window_ms * 0.9):
+            self._log_chunk_skip(
+                chunk_key,
+                anchor_ms,
+                "window_span_short",
+                span_ms=span_ms,
+                required_ms=int(self.window_ms * 0.9),
+                chunk_count=len(window_chunks),
+            )
+            return []
+
+        window_samples = self._decode_chunk_window_samples(window_chunks)
+        if len(window_samples) < self.min_required_samples:
+            self._log_chunk_skip(
+                chunk_key,
+                anchor_ms,
+                "sample_count_short",
+                sample_count=len(window_samples),
+                required_samples=self.min_required_samples,
+            )
+            return []
+
+        events = self._emit_events_from_samples(
+            chunk_key,
+            anchor_ms,
+            window_samples,
+            self.chunk_last_eval_ts,
+            self.chunk_smoothed_probs,
+            self.chunk_states,
+        )
+        if self.chunk_log_enabled:
+            log.info(
+                "anomaly chunk infer finished: key=%s chunkId=%s sampleCount=%s eventCount=%s labels=%s anchorMs=%s",
+                chunk_key,
+                chunk_id or "",
+                len(window_samples),
+                len(events),
+                ",".join(str(item.get("label", "unknown")) for item in events) if events else "",
+                anchor_ms,
+            )
+        return events
 
 
 detector = OnlineAnomalyDetector()
@@ -429,8 +714,39 @@ async def anomaly_frame(
     student_id: int = Form(...),
     ts_ms: int = Form(0),
 ):
+    # Java 后端会以固定节奏调用这个接口；这里只负责返回检测结果，不做持久化和业务判断。
     img = imread_bgr(await file.read())
+    # detector 会按 room_id + student_id 为每个学生维护独立缓存，不会把不同学生的状态混在一起。
     events = detector.update(room_id, student_id, ts_ms, img)
+    return {
+        "ok": True,
+        "fps": detector.target_fps,
+        "window_sec": detector.win_sec,
+        "step_sec": detector.step_sec,
+        "backend": detector.model_backend,
+        "labels": detector.labels,
+        "events": events,
+    }
+
+
+@app.post("/anomaly/chunk")
+async def anomaly_chunk(
+    file: UploadFile = File(...),
+    room_id: int = Form(...),
+    student_id: int = Form(...),
+    chunk_start_ts_ms: int = Form(0),
+    chunk_end_ts_ms: int = Form(0),
+    chunk_id: str = Form(""),
+):
+    video_bytes = await file.read()
+    events = detector.update_chunk(
+        room_id,
+        student_id,
+        chunk_start_ts_ms,
+        chunk_end_ts_ms,
+        video_bytes,
+        chunk_id or None,
+    )
     return {
         "ok": True,
         "fps": detector.target_fps,

@@ -33,6 +33,7 @@ export default function TeacherMonitor() {
   const peersRef = useRef(new Map());
   const allStudentsRef = useRef([]);
   const lastOfferAttemptRef = useRef(new Map());
+  const autoMutedStudentsRef = useRef(new Set());
 
   // 负责把输入数据整理成当前页面更容易消费的格式。
   // 跟读这个函数时，建议同时留意它依赖了哪些 state/ref，以及执行后会触发哪些界面刷新。
@@ -312,7 +313,17 @@ export default function TeacherMonitor() {
   }, []);
 
   useEffect(() => {
-    setMutedStudentIds((current) => current.filter((id) => liveStudents.some((student) => Number(student.studentId) === Number(id))));
+    const liveStudentIds = new Set(liveStudents.map((student) => Number(student.studentId)));
+    setMutedStudentIds((current) => {
+      const next = current.filter((id) => liveStudentIds.has(Number(id)));
+      liveStudentIds.forEach((studentId) => {
+        // Safari/macOS 对带声音的远端流自动播放更严格，新接入学生先静音能避免黑屏。
+        if (autoMutedStudentsRef.current.has(studentId)) return;
+        autoMutedStudentsRef.current.add(studentId);
+        next.push(studentId);
+      });
+      return next;
+    });
   }, [liveStudents]);
 
   // 负责处理当前页面的提交型交互，并在成功后刷新界面状态。
@@ -525,6 +536,7 @@ export default function TeacherMonitor() {
       peersRef.current.forEach((pc) => pc.close());
       peersRef.current.clear();
       lastOfferAttemptRef.current.clear();
+      autoMutedStudentsRef.current.clear();
       setMutedStudentIds([]);
       setLiveStudents([]);
       allStudentsRef.current = [];

@@ -15,6 +15,13 @@ import java.util.List;
 public interface RecordingSegmentMapper extends BaseMapper<RecordingSegmentEntity> {
     @Select("""
             select * from recording_segments
+            where segment_id = #{segmentId}
+            limit 1
+            """)
+    RecordingSegmentEntity selectBySegmentId(@Param("segmentId") String segmentId);
+
+    @Select("""
+            select * from recording_segments
             where exam_room_id = #{examRoomId}
               and student_id = #{studentId}
               and chunk_end_ts_ms >= #{fromTs}
